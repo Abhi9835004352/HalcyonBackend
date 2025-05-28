@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Halcyon Registration Report</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 12px;
+            color: #333;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #ff9800;
+            margin-bottom: 30px;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-placeholder {
+            width: 80px;
+            height: 80px;
+            background-color: #ff9800;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+            margin-right: 20px;
+        }
+
+        .title-section {
+            flex-grow: 1;
+        }
+
+        .logo-text {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ff9800;
+            margin: 0;
+            letter-spacing: 1px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #666;
+            margin: 5px 0 0 0;
+        }
+
+        .report-info {
+            text-align: right;
+        }
+
+        .report-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .report-date {
+            font-size: 14px;
+            color: #666;
+            margin: 5px 0 0 0;
+        }
+
+        .summary-box {
+            background-color: #f5f5f5;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff9800;
+            margin: 0;
+        }
+
+        .summary-label {
+            font-size: 14px;
+            color: #666;
+            margin: 5px 0 0 0;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .event-section {
+            margin-bottom: 30px;
+            page-break-inside: avoid;
+        }
+
+        .event-header {
+            background-color: #ff9800;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px 5px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .event-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .event-meta {
+            font-size: 12px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .event-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #ddd;
+            border-top: none;
+        }
+
+        th {
+            background-color: #f5f5f5;
+            color: #333;
+            font-weight: 600;
+            text-align: left;
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #ddd;
+            color: #555;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .page-number {
+            text-align: center;
+            font-size: 10px;
+            color: #999;
+            margin-top: 20px;
+        }
+
+        @media print {
+            body {
+                background-color: white;
+            }
+            .container {
+                box-shadow: none;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo-section">
+                <div class="logo-placeholder">H</div>
+                <div class="title-section">
+                    <h1 class="logo-text">HALCYON 2025</h1>
+                    <p class="subtitle">College Cultural Festival</p>
+                </div>
+            </div>
+            <div class="report-info">
+                <h2 class="report-title">Registration Report</h2>
+                <p class="report-date">Generated on: {{formattedDate}}</p>
+            </div>
+        </div>
+
+        <div class="summary-box">
+            <div class="summary-item">
+                <p class="summary-value">{{totalRegistrations}}</p>
+                <p class="summary-label">Total Registrations</p>
+            </div>
+            <div class="summary-item">
+                <p class="summary-value">{{totalEvents}}</p>
+                <p class="summary-label">Events with Registrations</p>
+            </div>
+            <div class="summary-item">
+                <p class="summary-value">{{maxRegistrationsPerEvent}}</p>
+                <p class="summary-label">Max Registrations per Event</p>
+            </div>
+        </div>
+
+        <h2 class="section-title">Event-wise Registration Details</h2>
+
+        {{#each eventGroups}}
+        <div class="event-section">
+            <div class="event-header">
+                <h3 class="event-name">{{this.event.name}}</h3>
+                <div class="event-meta">
+                    <div class="event-meta-item">
+                        <span>Category:</span>
+                        <strong>{{this.categoryName}}</strong>
+                    </div>
+                    <div class="event-meta-item">
+                        <span>Day:</span>
+                        <strong>{{this.event.day}}</strong>
+                    </div>
+                    <div class="event-meta-item">
+                        <span>Date:</span>
+                        <strong>{{this.formattedDate}}</strong>
+                    </div>
+                    <div class="event-meta-item">
+                        <span>Registrations:</span>
+                        <strong>{{this.registrations.length}}</strong>
+                    </div>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Participant Name</th>
+                        <th>Email</th>
+                        <th>Registration Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each this.registrations}}
+                    <tr>
+                        <td>{{this.index}}</td>
+                        <td>{{#if this.participant}}{{this.participant.name}}{{else}}N/A{{/if}}</td>
+                        <td>{{#if this.participant}}{{this.participant.email}}{{else}}N/A{{/if}}</td>
+                        <td>{{this.formattedRegistrationDate}}</td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+        {{/each}}
+
+        <div class="footer">
+            <p>© Halcyon 2025 - All rights reserved</p>
+            <p>This report is confidential and intended for administrative use only.</p>
+        </div>
+    </div>
+</body>
+</html>
