@@ -19,14 +19,28 @@ app.use(express.json());
 // CORS configuration
 const corsOptions = {
   origin: [
+    // Development URLs
     'http://localhost:5173', // Vite default port
     'http://localhost:5174', // Alternative Vite port
     'http://localhost:3000', // React default port
-    'https://halcyonfrontend.onrender.com', // Production frontend (if deployed)
+    'http://127.0.0.1:5173', // Alternative localhost
+    'http://127.0.0.1:5174', // Alternative localhost
+
+    // Production URLs (add multiple possible frontend URLs)
+    'https://halcyonfrontend.onrender.com',
+    'https://halcyon-frontend.onrender.com',
+    'https://halcyonfest.netlify.app',
+    'https://halcyon2025.netlify.app',
+    'https://halcyon-2025.netlify.app',
+
+    // Add any custom domain if you have one
+    // 'https://yourdomain.com',
   ],
   credentials: true,
   optionsSuccessStatus: 200
 };
+
+console.log('🌐 CORS configured for origins:', corsOptions.origin);
 
 app.use(cors(corsOptions));
 
