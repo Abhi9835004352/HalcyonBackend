@@ -5,10 +5,6 @@ const Event = require('../models/eventModel');
 
 const registerForEvent = async (req, res) => {
     try {
-        console.log('Registration request received');
-        console.log('User from token:', req.user);
-        console.log('Request body:', req.body);
-        console.log('Request params:', req.params);
         // Check if user has the correct role for regular registration
         if (req.user.role !== 'user') {
             return res.status(403).json({
@@ -23,13 +19,10 @@ const registerForEvent = async (req, res) => {
             teamSize,
             teamLeaderDetails,
             paymentId,
-            orderId
         } = req.body;
-
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
             return res.status(400).json({ error: "Invalid event ID format" });
         }
-
         const event = await Event.findById(eventId);
         if (!event) return res.status(404).json({ error: "Event not found" });
 
@@ -40,7 +33,6 @@ const registerForEvent = async (req, res) => {
                 registrationClosed: true
             });
         }
-
         // Validate team size
         // For team events, always use min and max team sizes if available
         if (event.teamSize >= 3 || event.isVariableTeamSize) {
@@ -61,7 +53,6 @@ const registerForEvent = async (req, res) => {
                 return res.status(400).json({ error: `Team size must be ${event.teamSize} members` })
             }
         }
-
         // Validate team name for larger teams
         if (teamSize > 2 && !teamName) {
             return res.status(400).json({ error: "Team name is required for teams with more than 2 members" });
@@ -72,14 +63,9 @@ const registerForEvent = async (req, res) => {
             return res.status(400).json({ error: "Team leader details are required" });
         }
 
-        // Validate payment for paid events
-        if (event.fees > 0 && (!paymentId || !orderId)) {
-            return res.status(400).json({
-                error: "Payment is required for this event",
-                requiresPayment: true,
-                eventFees: event.fees,
-            });
-        }
+        // Check if event has a fee
+        const eventFee = event.fees ? parseInt(event.fees) : 0;
+        const paymentStatus = eventFee > 0 ? 'pending' : 'not_required';
 
         // Create registration record for regular user
         const registration = await Registration.create({
@@ -94,8 +80,7 @@ const registerForEvent = async (req, res) => {
             teamSize: teamSize || 1,
             spotRegistration: null, // This is a regular registration, not a spot registration
             paymentId: paymentId || null,
-            orderId: orderId || null,
-            paymentStatus: event.fees > 0 ? 'completed' : 'not_required'
+            paymentStatus: paymentStatus
         });
 
         res.status(201).json(registration);
@@ -253,12 +238,7 @@ const spotRegistration = async (req, res) => {
         // This is a better approach than using the team member's ID as the team leader
         const spotRegistrationId = new mongoose.Types.ObjectId();
 
-        // Create a payment reference that includes team member info
-        const paymentReference = event.fees > 0 ?
-            `SPOT_PAYMENT_${req.user.name}_${Date.now()}` : null;
-
-        const orderReference = event.fees > 0 ?
-            `SPOT_ORDER_${req.user.name}_${Date.now()}` : null;
+        // No payment references needed
 
         // Create registration record for spot registration
         const registration = await Registration.create({
@@ -274,9 +254,9 @@ const spotRegistration = async (req, res) => {
             teamSize: teamSize || 1,
             spotRegistration: req.user._id, // Mark this as a spot registration by the team member
             // For spot registrations, include team member info in the payment reference
-            paymentId: paymentReference,
-            orderId: orderReference,
-            paymentStatus: event.fees > 0 ? 'completed' : 'not_required',
+            paymentId: null,
+            orderId: null,
+            paymentStatus: 'not_required',
             notes: notes || null // Store payment mode information
         });
 
@@ -286,4 +266,48 @@ const spotRegistration = async (req, res) => {
     }
 }
 
-module.exports = { registerForEvent, viewMyRegistration, spotRegistration };
+// Update payment information for a registration
+const updatePayment = async (req, res) => {
+    try {
+        const { registrationId } = req.params;
+        const { paymentId } = req.body;
+
+        if (!mongoose.Types.ObjectId.isValid(registrationId)) {
+            return res.status(400).json({ error: "Invalid registration ID format" });
+        }
+
+        if (!paymentId) {
+            return res.status(400).json({ error: "Payment ID is required" });
+        }
+
+        // Find the registration
+        const registration = await Registration.findById(registrationId);
+        if (!registration) {
+            return res.status(404).json({ error: "Registration not found" });
+        }
+
+        // Verify that the user is the team leader for this registration
+        if (registration.teamLeader.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                error: "You are not authorized to update this registration",
+                message: "Only the team leader can update payment information"
+            });
+        }
+
+        // Update the payment information
+        registration.paymentId = paymentId;
+        registration.paymentStatus = 'completed';
+
+        // Save the updated registration
+        await registration.save();
+
+        res.json({
+            message: "Payment information updated successfully",
+            registration
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+};
+
+module.exports = { registerForEvent, viewMyRegistration, spotRegistration, updatePayment };
