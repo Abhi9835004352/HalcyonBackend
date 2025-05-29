@@ -21,10 +21,9 @@ const getAllRegistrations = async (req, res) => {
   try {
     const registrations = await Registration.find()
       .populate('event', 'name date venue category day fees')
-      .populate('teamLeader', 'name mobile email')
+      .populate('teamLeader', 'name email mobile transactionId')
       .populate('spotRegistration', 'name email mobile')
-      .populate('teamMembers', 'name mobile email')
-      .populate('teamLeader', 'name email mobile transactionId') ;
+      .populate('teamMembers', 'name mobile email');
 
     if (!registrations || registrations.length === 0) {
       return res.status(404).json({ error: "No registrations found" });

@@ -161,12 +161,16 @@ const registerForEvent = async (req, res) => {
 
 const viewMyRegistration = async (req, res) => {
     try {
+        console.log('viewMyRegistration called for user:', req.user._id);
+
         const registrations = await Registration.find({
             $or: [
                 { teamLeader: req.user._id },
                 { spotRegistration: req.user._id }
             ]
         }).populate('event');
+
+        console.log(`Found ${registrations.length} registrations for user ${req.user._id}`);
 
         // For regular registrations, populate the teamLeader field
         // For spot registrations, this might fail since we're using a generated ObjectId
@@ -219,8 +223,13 @@ const viewMyRegistration = async (req, res) => {
             return regObj;
         });
 
-        res.json(processedRegistrations);
+        console.log('Returning processed registrations:', processedRegistrations.length);
+
+        // Always return 200 status with the array (empty or populated)
+        // This is the correct REST API behavior - 404 should only be used when the resource itself doesn't exist
+        res.status(200).json(processedRegistrations);
     } catch (err) {
+        console.error('Error in viewMyRegistration:', err);
         res.status(500).json({ error: err.message });
     }
 }
