@@ -116,7 +116,32 @@ const registerForEvent = async (req, res) => {
             paymentId: paymentId || null,
             orderId: orderId || null,
             transactionId: transactionId || null,
-            paymentStatus: event.fees > 0 ? 'pending' : 'not_required'
+            paymentStatus: (() => {
+                if (event.fees === 0) return 'not_required';
+
+                // Check if any team member is from SIT (same college)
+                const allParticipants = [
+                    { usn: teamLeaderDetails.usn },
+                    ...(teamMembers || [])
+                ];
+
+                const hasAnySITStudent = allParticipants.some(participant =>
+                    participant.usn && participant.usn.toLowerCase().startsWith('1si')
+                );
+
+                const isGamingEvent = event.category === 'gaming';
+
+                if (!hasAnySITStudent) {
+                    // Other college students: pay on event day
+                    return 'pay_on_event_day';
+                } else if (hasAnySITStudent && isGamingEvent) {
+                    // Same college + gaming events: payment notification required
+                    return 'payment_required';
+                } else {
+                    // Same college + non-gaming events: free (SIT exemption)
+                    return 'not_required';
+                }
+            })()
         };
 
         console.log('Creating registration with data:', JSON.stringify(registrationData, null, 2));

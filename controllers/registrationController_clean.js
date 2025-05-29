@@ -60,6 +60,34 @@ const registerForEvent = async (req, res) => {
         // Check if this is a spot registration (created by a team member)
         const isSpotRegistration = req.user.role === 'team';
 
+        // Determine payment status based on new requirements
+        let paymentStatus = 'not_required';
+
+        if (event.fees > 0) {
+            // Check if any team member is from SIT (same college)
+            const allParticipants = [
+                { usn: teamLeaderDetails.usn },
+                ...(teamMembers || [])
+            ];
+
+            const hasAnySITStudent = allParticipants.some(participant =>
+                participant.usn && participant.usn.toLowerCase().startsWith('1si')
+            );
+
+            const isGamingEvent = event.category === 'gaming';
+
+            if (!hasAnySITStudent) {
+                // Other college students: pay on event day
+                paymentStatus = 'pay_on_event_day';
+            } else if (hasAnySITStudent && isGamingEvent) {
+                // Same college + gaming events: payment notification required
+                paymentStatus = 'payment_required';
+            } else {
+                // Same college + non-gaming events: free (SIT exemption)
+                paymentStatus = 'not_required';
+            }
+        }
+
         const registration = await Registration.create({
             event: eventId,
             teamLeader: req.user._id,
@@ -74,7 +102,7 @@ const registerForEvent = async (req, res) => {
             paymentId: paymentId || null,
             orderId: orderId || null,
             transactionId: transactionId || null,
-            paymentStatus: event.fees > 0 ? 'pending' : 'not_required'
+            paymentStatus: paymentStatus
         });
 
         res.status(201).json(registration);

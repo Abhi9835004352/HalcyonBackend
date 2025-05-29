@@ -323,7 +323,8 @@ const exportRegistrationsToExcel = async (req, res) => {
       { header: 'College', key: 'collegeName', width: 30 },
       { header: 'USN', key: 'usn', width: 15 },
       { header: 'Registration Date', key: 'registeredAt', width: 20 },
-      { header: 'Payment Status', key: 'paymentStatus', width: 15 },
+      { header: 'Payment Status', key: 'paymentStatus', width: 18 },
+      { header: 'Payment Required', key: 'paymentRequired', width: 18 },
       { header: 'Payment ID', key: 'paymentId', width: 25 },
       { header: 'Transaction ID', key: 'transactionId', width: 25 },
       { header: 'Notes', key: 'notes', width: 30 }
@@ -385,6 +386,26 @@ const exportRegistrationsToExcel = async (req, res) => {
         ? `Spot registration by ${teamMemberName || registration.spotRegistration?.name || 'team member'}`
         : '';
 
+      // Determine payment requirement text for Excel
+      const getPaymentRequiredText = (paymentStatus) => {
+        switch (paymentStatus) {
+          case 'not_required':
+            return 'No';
+          case 'pay_on_event_day':
+            return 'Yes - On Event Day';
+          case 'payment_required':
+            return 'Yes - Advance Payment';
+          case 'completed':
+            return 'No - Already Paid';
+          case 'pending':
+            return 'Yes - Payment Pending';
+          case 'failed':
+            return 'Yes - Payment Failed';
+          default:
+            return 'Unknown';
+        }
+      };
+
       worksheet.addRow({
         slNo: index + 1,
         eventName: registration.event ? registration.event.name : 'Unknown',
@@ -399,6 +420,7 @@ const exportRegistrationsToExcel = async (req, res) => {
         usn: registration.teamLeaderDetails ? registration.teamLeaderDetails.usn : 'N/A',
         registeredAt: registration.registeredAt ? new Date(registration.registeredAt).toLocaleString() : 'N/A',
         paymentStatus: registration.paymentStatus || 'N/A',
+        paymentRequired: getPaymentRequiredText(registration.paymentStatus),
         paymentId: registration.paymentId || 'N/A',
         transactionId: registration.teamLeader?.transactionId || 'N/A',
         notes: registrationNote
