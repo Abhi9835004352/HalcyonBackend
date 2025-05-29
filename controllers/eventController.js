@@ -41,9 +41,26 @@ const createEvent = async (req, res) => {
 
 const getAllEvents = async (req, res) => {
     try {
-        const events = await Event.find();
+        // Optional: Add filtering by category, day, or registration status
+        const { category, day, registrationOpen } = req.query;
+        let filter = {};
+
+        if (category) {
+            filter.category = category;
+        }
+
+        if (day) {
+            filter.day = parseInt(day);
+        }
+
+        if (registrationOpen !== undefined) {
+            filter.registrationOpen = registrationOpen === 'true';
+        }
+
+        const events = await Event.find(filter).sort({ day: 1, name: 1 });
         res.json(events);
     } catch (err) {
+        console.error('Error fetching events:', err);
         res.status(400).json({ error: err.message });
     }
 }

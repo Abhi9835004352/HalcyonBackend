@@ -11,15 +11,50 @@ let imageBase64 = '';
 
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password');
-    res.json(users);
+    // Optional: Add pagination support
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const users = await User.find()
+      .select('-password')
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    const total = await User.countDocuments();
+
+    res.json({
+      users,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error('Error fetching users:', err);
+    res.status(500).json({ error: err.message });
   }
 }
 const getAllRegistrations = async (req, res) => {
   try {
-    const registrations = await Registration.find()
+    // Optional: Add filtering by event or date
+    const { eventId, startDate, endDate } = req.query;
+    let filter = {};
+
+    if (eventId) {
+      filter.event = eventId;
+    }
+
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (endDate) filter.createdAt.$lte = new Date(endDate);
+    }
+
+    const registrations = await Registration.find(filter)
       .populate('event', 'name date venue category day fees')
       .populate('teamLeader', 'name email mobile transactionId')
       .populate('spotRegistration', 'name email mobile')
@@ -40,7 +75,7 @@ const assignTeamMember = async (req, res) => {
   try {
     const { eventId, userId } = req.params;
     const event = await Event.findById(eventId);
-    if (!event) return res.status(404).json({ error: "Evenet not found" });
+    if (!event) return res.status(404).json({ error: "Event not found" });
 
     event.managedBy = userId;
     await event.save();
@@ -213,9 +248,18 @@ const generatePdf = async (req, res) => {
 const deleteEvent = async (req, res) => {
   try {
     const eventId = req.params.id;
-    await Event.findByIdAndRemove(eventId);
+
+    // Check if event exists before deletion
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    // Delete the event using the non-deprecated method
+    await Event.findByIdAndDelete(eventId);
     res.json({ message: `Event with Id ${eventId} deleted successfully` });
   } catch (err) {
+    console.error('Error deleting event:', err);
     res.status(500).json({ error: err.message });
   }
 }
@@ -237,8 +281,19 @@ const exportRegistrationsToExcel = async (req, res) => {
     workbook.created = new Date();
     workbook.modified = new Date();
 
-    // No query filters - get all registrations
+    // Optional: Add filtering by event or date from query parameters
+    const { eventId, startDate, endDate } = req.query;
     const query = {};
+
+    if (eventId) {
+      query.event = eventId;
+    }
+
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
 
     // Fetch registrations with populated references
     const registrations = await Registration.find(query)

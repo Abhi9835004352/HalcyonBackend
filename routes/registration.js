@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/authMiddleware');
-const allowedRoles = require('../middleware/roleMiddleware');
 const { registerForEvent, viewMyRegistration, checkRegistration } = require('../controllers/registrationController.js');
 
 // Regular registration endpoint - can be used by both users and team members
