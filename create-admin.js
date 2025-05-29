@@ -36,6 +36,26 @@ const createAdminUser = async () => {
     console.log('Password: admin123');
     console.log('Role: admin');
 
+    // Also create a team user for testing
+    const existingTeam = await User.findOne({ email: 'team@halcyon.com' });
+    if (!existingTeam) {
+      const teamUser = new User({
+        name: 'Team Member',
+        email: 'team@halcyon.com',
+        mobile: '8888888888',
+        password: 'team123', // This will be hashed automatically
+        role: 'team'
+      });
+
+      await teamUser.save();
+      console.log('✅ Team user created successfully!');
+      console.log('Email: team@halcyon.com');
+      console.log('Password: team123');
+      console.log('Role: team');
+    } else {
+      console.log('Team user already exists: team@halcyon.com');
+    }
+
   } catch (error) {
     console.error('❌ Error creating admin user:', error);
   } finally {

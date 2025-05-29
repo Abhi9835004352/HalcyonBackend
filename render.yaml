@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: halcyonbackend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: MONGODB_URL
+        fromDatabase:
+          name: halcyon-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: EMAIL_USER
+        value: abhishekforitutor@gmail.com
+      - key: EMAIL_APP_PASSWORD
+        value: tzuznbahnizpxmzt
+      - key: RAZORPAY_KEY_ID
+        value: your_razorpay_key_id
+      - key: RAZORPAY_KEY_SECRET
+        value: your_razorpay_key_secret
+    healthCheckPath: /health
+    autoDeploy: true
+    
+databases:
+  - name: halcyon-db
+    databaseName: halcyon
+    user: mongodb
+    plan: free

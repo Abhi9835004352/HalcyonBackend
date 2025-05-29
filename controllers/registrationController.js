@@ -298,4 +298,77 @@ const checkRegistration = async (req, res) => {
     }
 }
 
-module.exports = { registerForEvent, viewMyRegistration, checkRegistration };
+// Spot registration function for team members
+const spotRegistration = async (req, res) => {
+    try {
+        console.log('Spot registration request received');
+        console.log('Team member from token:', req.user);
+        console.log('Request body:', req.body);
+        console.log('Request params:', req.params);
+
+        const { eventId } = req.params;
+        const {
+            teamName,
+            teamMembers,
+            teamSize,
+            teamLeaderDetails
+        } = req.body;
+
+        if (!mongoose.Types.ObjectId.isValid(eventId)) {
+            return res.status(400).json({ error: "Invalid event ID format" });
+        }
+
+        // Get event details
+        const event = await Event.findById(eventId);
+        if (!event) {
+            return res.status(404).json({ error: "Event not found" });
+        }
+
+        // Validate team leader details
+        if (!teamLeaderDetails || !teamLeaderDetails.collegeName || !teamLeaderDetails.usn) {
+            return res.status(400).json({ error: "Team leader details are required" });
+        }
+
+        // Determine payment status based on USN
+        let paymentStatus = 'not_required';
+        if (event.fees > 0) {
+            // Check if any team member is from SIT (same college)
+            const allParticipants = [
+                { usn: teamLeaderDetails.usn },
+                ...(teamMembers || [])
+            ];
+
+            const hasAnySITStudent = allParticipants.some(participant =>
+                participant.usn && participant.usn.toLowerCase().startsWith('1si')
+            );
+
+            paymentStatus = hasAnySITStudent ? 'not_required' : 'pending';
+        }
+
+        // Create registration
+        const registration = await Registration.create({
+            event: eventId,
+            teamLeader: req.user._id, // Team member who is doing the registration
+            teamLeaderDetails: {
+                collegeName: teamLeaderDetails.collegeName,
+                usn: teamLeaderDetails.usn,
+            },
+            teamName: teamName || null,
+            teamMembers: teamMembers || [],
+            teamSize: teamSize || 1,
+            spotRegistration: req.user._id, // Mark as spot registration
+            paymentStatus: paymentStatus
+        });
+
+        res.status(201).json({
+            message: 'Spot registration completed successfully',
+            registration: registration,
+            paymentRequired: paymentStatus === 'pending'
+        });
+    } catch (err) {
+        console.error('Spot registration error:', err);
+        return res.status(500).json({ error: err.message });
+    }
+};
+
+module.exports = { registerForEvent, viewMyRegistration, checkRegistration, spotRegistration };
