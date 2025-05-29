@@ -15,7 +15,20 @@ const app = express();
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+
+// CORS configuration
+const corsOptions = {
+  origin: [
+    'http://localhost:5173', // Vite default port
+    'http://localhost:5174', // Alternative Vite port
+    'http://localhost:3000', // React default port
+    'https://halcyonfrontend.onrender.com', // Production frontend (if deployed)
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 
 // Connect to database
 connectToDb();
