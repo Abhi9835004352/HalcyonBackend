@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const registrationSchema = new mongoose.Schema({
     teamName: {
         type: String,
-        required: function () { return this.teamMembers.length > 2; }
+        required: function() { return this.teamSize > 2; }
     },
     teamLeader: {
         type: mongoose.Schema.Types.ObjectId,
@@ -44,7 +44,7 @@ const registrationSchema = new mongoose.Schema({
     event: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Event',
-        required: 'True'
+        required: true
     },
     registeredAt: {
         type: Date,
@@ -59,6 +59,14 @@ const registrationSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    orderId: {
+        type: String,
+        default: null
+    },
+    transactionId: {
+        type: String,
+        default: null
+    },
     paymentStatus: {
         type: String,
         enum: ['pending', 'completed', 'failed', 'not_required'],
@@ -69,4 +77,9 @@ const registrationSchema = new mongoose.Schema({
         default: null
     }
 }, { timestamps: true });
+
+// Create a compound unique index to prevent duplicate registrations
+// This ensures that the same user (teamLeader) cannot register for the same event twice
+registrationSchema.index({ event: 1, teamLeader: 1 }, { unique: true });
+
 module.exports = mongoose.model('Registration', registrationSchema);

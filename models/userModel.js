@@ -19,6 +19,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  transactionId: {
+    type: String,
+    required: false,
+    default: '',
+  },
   role: {
     type: String,
     enum: ['user', 'team', 'admin'],

@@ -21,7 +21,7 @@ const getAllRegistrations = async (req, res) => {
   try {
     const registrations = await Registration.find()
       .populate('event', 'name date venue category day fees')
-      .populate('teamLeader', 'name mobile email')
+      .populate('teamLeader', 'name email mobile transactionId')
       .populate('spotRegistration', 'name email mobile')
       .populate('teamMembers', 'name mobile email');
 
@@ -35,6 +35,7 @@ const getAllRegistrations = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 }
+
 const assignTeamMember = async (req, res) => {
   try {
     const { eventId, userId } = req.params;
@@ -164,6 +165,7 @@ const generatePdf = async (req, res) => {
         <th>Team Name</th>
         <th>Team Leader</th>
         <th>Contact No.</th>
+        <th>Transaction ID</th>
       </tr>
       ${registrations.length > 0 ?
         registrations.map((registration, index) => {
@@ -173,9 +175,10 @@ const generatePdf = async (req, res) => {
               <td>${registration.teamName || 'N/A'}</td>
               <td>${registration.teamLeader?.name || 'N/A'}</td>
               <td>${registration.teamLeader?.mobile || 'N/A'}</td>
+              <td>${registration.teamLeader?.transactionId || 'N/A'}</td>
             </tr>`;
         }).join('') :
-        `<tr><td colspan="4" class="no-data">No registrations found for this event</td></tr>`
+        `<tr><td colspan="5" class="no-data">No registrations found for this event</td></tr>`
       }
     </table>
   </body>
@@ -267,6 +270,7 @@ const exportRegistrationsToExcel = async (req, res) => {
       { header: 'Registration Date', key: 'registeredAt', width: 20 },
       { header: 'Payment Status', key: 'paymentStatus', width: 15 },
       { header: 'Payment ID', key: 'paymentId', width: 25 },
+      { header: 'Transaction ID', key: 'transactionId', width: 25 },
       { header: 'Notes', key: 'notes', width: 30 }
     ];
 
@@ -341,6 +345,7 @@ const exportRegistrationsToExcel = async (req, res) => {
         registeredAt: registration.registeredAt ? new Date(registration.registeredAt).toLocaleString() : 'N/A',
         paymentStatus: registration.paymentStatus || 'N/A',
         paymentId: registration.paymentId || 'N/A',
+        transactionId: registration.teamLeader?.transactionId || 'N/A',
         notes: registrationNote
       });
     });

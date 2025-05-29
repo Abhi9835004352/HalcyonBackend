@@ -17,7 +17,6 @@ const createEvent = async (req, res) => {
             parsedTeamSize = parsedMinTeamSize;
             console.log('Set teamSize to match minTeamSize for team event:', parsedTeamSize);
         }
-
         const event = await Event.create({
             name,
             description,

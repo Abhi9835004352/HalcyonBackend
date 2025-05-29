@@ -1,10 +1,13 @@
 const Registration = require('../models/registrationModel');
-const sendEmail = require('../utils/mailer');
-const mongoose = require('mongoose');
 const Event = require('../models/eventModel');
+const mongoose = require('mongoose');
 
 const registerForEvent = async (req, res) => {
     try {
+        console.log('Registration request received');
+        console.log('User from token:', req.user);
+        console.log('Request body:', req.body);
+        console.log('Request params:', req.params);
         // Check if user has the correct role for regular registration
         if (req.user.role !== 'user') {
             return res.status(403).json({
@@ -19,10 +22,14 @@ const registerForEvent = async (req, res) => {
             teamSize,
             teamLeaderDetails,
             paymentId,
+            orderId,
+            transactionId
         } = req.body;
+
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
             return res.status(400).json({ error: "Invalid event ID format" });
         }
+
         const event = await Event.findById(eventId);
         if (!event) return res.status(404).json({ error: "Event not found" });
 
@@ -33,7 +40,8 @@ const registerForEvent = async (req, res) => {
                 registrationClosed: true
             });
         }
-        // Validate team size
+
+        // Validate team size - Use improved logic from main branch
         // For team events, always use min and max team sizes if available
         if (event.teamSize >= 3 || event.isVariableTeamSize) {
             // Use minTeamSize and maxTeamSize if available, otherwise fall back to teamSize
@@ -50,9 +58,10 @@ const registerForEvent = async (req, res) => {
         } else {
             // For individual or duo events, use exact team size
             if (teamSize !== event.teamSize) {
-                return res.status(400).json({ error: `Team size must be ${event.teamSize} members` })
+                return res.status(400).json({ error: `Team size must be ${event.teamSize} members` });
             }
         }
+
         // Validate team name for larger teams
         if (teamSize > 2 && !teamName) {
             return res.status(400).json({ error: "Team name is required for teams with more than 2 members" });
@@ -63,12 +72,37 @@ const registerForEvent = async (req, res) => {
             return res.status(400).json({ error: "Team leader details are required" });
         }
 
-        // Check if event has a fee
-        const eventFee = event.fees ? parseInt(event.fees) : 0;
-        const paymentStatus = eventFee > 0 ? 'pending' : 'not_required';
+        // Check for duplicate registration
+        const existingRegistration = await Registration.findOne({
+            event: eventId,
+            teamLeader: req.user._id
+        });
 
-        // Create registration record for regular user
-        const registration = await Registration.create({
+        if (existingRegistration) {
+            console.log('Duplicate registration attempt detected:', {
+                userId: req.user._id,
+                eventId: eventId,
+                existingRegistrationId: existingRegistration._id,
+                registrationDate: existingRegistration.createdAt
+            });
+
+            return res.status(409).json({
+                error: 'You have already registered for this event',
+                alreadyRegistered: true,
+                registrationDate: existingRegistration.createdAt,
+                registrationId: existingRegistration._id,
+                message: 'Duplicate registration is not allowed. Each user can only register once per event.'
+            });
+        }
+
+        // PAYMENT CHECK BYPASSED - Accept registration regardless of payment status
+        console.log('Payment check bypassed - accepting registration');
+
+        // Check if this is a spot registration (created by a team member)
+        const isSpotRegistration = req.user.role === 'team';
+
+        // Prepare registration data
+        const registrationData = {
             event: eventId,
             teamLeader: req.user._id, // Set the authenticated user as team leader
             teamLeaderDetails: {
@@ -78,26 +112,65 @@ const registerForEvent = async (req, res) => {
             teamName: teamName || null,
             teamMembers: teamMembers || [],
             teamSize: teamSize || 1,
-            spotRegistration: null, // This is a regular registration, not a spot registration
+            spotRegistration: isSpotRegistration ? req.user._id : null,
             paymentId: paymentId || null,
-            paymentStatus: paymentStatus
-        });
+            orderId: orderId || null,
+            transactionId: transactionId || null,
+            paymentStatus: event.fees > 0 ? 'pending' : 'not_required'
+        };
 
+        console.log('Creating registration with data:', JSON.stringify(registrationData, null, 2));
+
+        const registration = await Registration.create(registrationData);
+
+        console.log('Registration created successfully:', registration);
         res.status(201).json(registration);
     } catch (err) {
+        console.error('Registration creation failed:', err);
+
+        // Handle validation errors specifically
+        if (err.name === 'ValidationError') {
+            const validationErrors = Object.values(err.errors).map(e => e.message);
+            console.error('Validation errors:', validationErrors);
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: validationErrors,
+                fullError: err.message
+            });
+        }
+
+        // Handle duplicate key errors (database-level constraint)
+        if (err.code === 11000) {
+            console.error('Database duplicate key error - user attempted to register twice:', {
+                userId: req.user._id,
+                eventId: req.params.eventId,
+                error: err.message
+            });
+
+            return res.status(409).json({
+                error: 'You have already registered for this event',
+                alreadyRegistered: true,
+                message: 'Duplicate registration prevented by database constraint. Each user can only register once per event.',
+                details: 'This error occurred at the database level, indicating a duplicate registration attempt.'
+            });
+        }
+
         return res.status(500).json({ error: err.message });
     }
 }
 
 const viewMyRegistration = async (req, res) => {
     try {
-        // Find registrations where the user is either the team leader or the spot registration creator
+        console.log('viewMyRegistration called for user:', req.user._id);
+
         const registrations = await Registration.find({
             $or: [
                 { teamLeader: req.user._id },
                 { spotRegistration: req.user._id }
             ]
         }).populate('event');
+
+        console.log(`Found ${registrations.length} registrations for user ${req.user._id}`);
 
         // For regular registrations, populate the teamLeader field
         // For spot registrations, this might fail since we're using a generated ObjectId
@@ -150,164 +223,54 @@ const viewMyRegistration = async (req, res) => {
             return regObj;
         });
 
-        res.json(processedRegistrations);
+        console.log('Returning processed registrations:', processedRegistrations.length);
+
+        // Always return 200 status with the array (empty or populated)
+        // This is the correct REST API behavior - 404 should only be used when the resource itself doesn't exist
+        res.status(200).json(processedRegistrations);
     } catch (err) {
+        console.error('Error in viewMyRegistration:', err);
         res.status(500).json({ error: err.message });
     }
 }
 
-/**
- * Handle spot registrations created by team members at the event venue
- */
-const spotRegistration = async (req, res) => {
+const checkRegistration = async (req, res) => {
     try {
-        console.log('Spot registration request received');
-        console.log('Team member from token:', req.user);
-        console.log('Request body:', req.body);
-        console.log('Request params:', req.params);
-
-        // Verify that the user has the team role
-        if (req.user.role !== 'team') {
-            return res.status(403).json({
-                error: "Only team members can create spot registrations",
-                message: "Regular users should use the standard registration endpoint"
-            });
-        }
+        console.log('Checking registration for event:', req.params.eventId);
+        console.log('User:', req.user);
 
         const { eventId } = req.params;
-        const {
-            teamName,
-            teamMembers,
-            teamSize,
-            teamLeaderDetails,
-            notes
-        } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
             return res.status(400).json({ error: "Invalid event ID format" });
         }
 
-        const event = await Event.findById(eventId);
-        if (!event) return res.status(404).json({ error: "Event not found" });
+        // Check if user is already registered for this event
+        const existingRegistration = await Registration.findOne({
+            event: eventId,
+            teamLeader: req.user._id
+        }).populate('event', 'name');
 
-        // Check if registration is open for this event
-        if (!event.registrationOpen) {
-            return res.status(403).json({
-                error: "Registration for this event is currently closed",
-                registrationClosed: true
+        if (existingRegistration) {
+            return res.json({
+                isRegistered: true,
+                registrationDetails: {
+                    teamName: existingRegistration.teamName,
+                    teamSize: existingRegistration.teamSize,
+                    registrationDate: existingRegistration.createdAt,
+                    transactionId: existingRegistration.transactionId,
+                    paymentStatus: existingRegistration.paymentStatus
+                }
+            });
+        } else {
+            return res.json({
+                isRegistered: false
             });
         }
-
-        // Validate team size
-        // For team events, always use min and max team sizes if available
-        if (event.teamSize >= 3 || event.isVariableTeamSize) {
-            // Use minTeamSize and maxTeamSize if available, otherwise fall back to teamSize
-            const minSize = event.minTeamSize || event.teamSize;
-            const maxSize = event.maxTeamSize || event.teamSize;
-
-            if (teamSize < minSize) {
-                return res.status(400).json({ error: `Team size cannot be less than ${minSize}` });
-            }
-
-            if (teamSize > maxSize) {
-                return res.status(400).json({ error: `Team size cannot exceed ${maxSize}` });
-            }
-        } else {
-            // For individual or duo events, use exact team size
-            if (teamSize !== event.teamSize) {
-                return res.status(400).json({ error: `Team size must be ${event.teamSize} members` })
-            }
-        }
-
-        // Validate team name for larger teams
-        if (teamSize > 2 && !teamName) {
-            return res.status(400).json({ error: "Team name is required for teams with more than 2 members" });
-        }
-
-        // Validate team leader details
-        if (!teamLeaderDetails || !teamLeaderDetails.collegeName || !teamLeaderDetails.usn) {
-            return res.status(400).json({ error: "Team leader details are required" });
-        }
-
-        // For spot registrations, we need at least the first team member's details
-        if (!teamMembers || teamMembers.length === 0 || !teamMembers[0].name || !teamMembers[0].email || !teamMembers[0].mobile) {
-            return res.status(400).json({ error: "At least one team member with complete details is required" });
-        }
-
-        // Create a special object ID for spot registrations
-        // This is a better approach than using the team member's ID as the team leader
-        const spotRegistrationId = new mongoose.Types.ObjectId();
-
-        // No payment references needed
-
-        // Create registration record for spot registration
-        const registration = await Registration.create({
-            event: eventId,
-            // Use a special ObjectId for spot registrations
-            teamLeader: spotRegistrationId,
-            teamLeaderDetails: {
-                collegeName: teamLeaderDetails.collegeName,
-                usn: teamLeaderDetails.usn,
-            },
-            teamName: teamName || null,
-            teamMembers: teamMembers || [],
-            teamSize: teamSize || 1,
-            spotRegistration: req.user._id, // Mark this as a spot registration by the team member
-            // For spot registrations, include team member info in the payment reference
-            paymentId: null,
-            orderId: null,
-            paymentStatus: 'not_required',
-            notes: notes || null // Store payment mode information
-        });
-
-        res.status(201).json(registration);
     } catch (err) {
-        return res.status(500).json({ error: err.message });
+        console.error('Error checking registration:', err);
+        res.status(500).json({ error: err.message });
     }
 }
 
-// Update payment information for a registration
-const updatePayment = async (req, res) => {
-    try {
-        const { registrationId } = req.params;
-        const { paymentId } = req.body;
-
-        if (!mongoose.Types.ObjectId.isValid(registrationId)) {
-            return res.status(400).json({ error: "Invalid registration ID format" });
-        }
-
-        if (!paymentId) {
-            return res.status(400).json({ error: "Payment ID is required" });
-        }
-
-        // Find the registration
-        const registration = await Registration.findById(registrationId);
-        if (!registration) {
-            return res.status(404).json({ error: "Registration not found" });
-        }
-
-        // Verify that the user is the team leader for this registration
-        if (registration.teamLeader.toString() !== req.user._id.toString()) {
-            return res.status(403).json({
-                error: "You are not authorized to update this registration",
-                message: "Only the team leader can update payment information"
-            });
-        }
-
-        // Update the payment information
-        registration.paymentId = paymentId;
-        registration.paymentStatus = 'completed';
-
-        // Save the updated registration
-        await registration.save();
-
-        res.json({
-            message: "Payment information updated successfully",
-            registration
-        });
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
-};
-
-module.exports = { registerForEvent, viewMyRegistration, spotRegistration, updatePayment };
+module.exports = { registerForEvent, viewMyRegistration, checkRegistration };
