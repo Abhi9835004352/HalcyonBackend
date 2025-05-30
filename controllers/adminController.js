@@ -11,33 +11,22 @@ let imageBase64 = '';
 
 const getAllUsers = async (req, res) => {
   try {
-    // Optional: Add pagination support
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-
+    // Remove pagination and get all users
     const users = await User.find()
       .select('-password')
-      .skip(skip)
-      .limit(limit)
       .sort({ createdAt: -1 });
 
-    const total = await User.countDocuments();
+    const total = users.length;
 
     res.json({
       users,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
+      total
     });
   } catch (err) {
     console.error('Error fetching users:', err);
     res.status(500).json({ error: err.message });
   }
-}
+};
 const getAllRegistrations = async (req, res) => {
   try {
     // Optional: Add filtering by event or date
