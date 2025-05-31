@@ -36,9 +36,12 @@ const corsOptions = {
       // Development URLs
       'http://localhost:5173', // Vite default port
       'http://localhost:5174', // Alternative Vite port
+      'http://localhost:5175', // Alternative Vite port
+      'http://localhost:5176', // Alternative Vite port
       'http://localhost:3000', // React default port
       'http://127.0.0.1:5173', // Alternative localhost
       'http://127.0.0.1:5174', // Alternative localhost
+      'http://127.0.0.1:5175', // Alternative localhost
 
       // Production URLs (add multiple possible frontend URLs)
       'https://halcyonfrontend.onrender.com',

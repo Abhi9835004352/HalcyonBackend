@@ -82,7 +82,7 @@ const generatePdf = async (req, res) => {
     // Get registrations with participant details
     const registrations = await Registration.find({ event: eventID })
       .populate('teamLeader', 'name email mobile')
-      .populate('event', 'name');
+      .populate('event', 'name date venue category day fees');
 
     // Read and encode the image
     try {
@@ -98,7 +98,7 @@ const generatePdf = async (req, res) => {
     const html = `
 <html>
   <head>
-    <title>Registrations 2024</title>
+    <title>Registrations 2025</title>
     <style>
       body {
         font-family: 'Arial', sans-serif;
@@ -151,6 +151,7 @@ const generatePdf = async (req, res) => {
         border: 1px solid #000;
         padding: 8px 12px;
         text-align: left;
+        vertical-align: top;
       }
 
       th {
@@ -159,7 +160,7 @@ const generatePdf = async (req, res) => {
         text-align: center;
       }
 
-      td:nth-child(1), td:nth-child(4) {
+      td:nth-child(1) {
         text-align: center;
       }
 
@@ -172,6 +173,31 @@ const generatePdf = async (req, res) => {
         padding: 20px;
         font-style: italic;
         color: #666;
+      }
+
+      .team-members {
+        margin-top: 5px;
+        font-size: 12px;
+        color: #555;
+      }
+
+      .team-member {
+        margin: 2px 0;
+        padding: 2px 0;
+        border-bottom: 1px dotted #ccc;
+      }
+
+      .team-member:last-child {
+        border-bottom: none;
+      }
+
+      .member-name {
+        font-weight: bold;
+      }
+
+      .member-usn {
+        color: #666;
+        font-style: italic;
       }
     </style>
   </head>
@@ -187,22 +213,44 @@ const generatePdf = async (req, res) => {
       <tr>
         <th>Sl. No.</th>
         <th>Team Name</th>
-        <th>Team Leader</th>
+        <th>Team Leader & Members</th>
         <th>Contact No.</th>
+        <th>College</th>
         <th>Transaction ID</th>
       </tr>
       ${registrations.length > 0 ?
         registrations.map((registration, index) => {
+          // Generate team members list
+          let teamMembersHtml = '';
+          if (registration.teamMembers && registration.teamMembers.length > 0) {
+            teamMembersHtml = `
+              <div class="team-members">
+                <strong>Team Members:</strong>
+                ${registration.teamMembers.map(member => `
+                  <div class="team-member">
+                    <span class="member-name">${member.name || 'N/A'}</span>
+                    ${member.usn ? `<span class="member-usn"> (${member.usn})</span>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            `;
+          }
+
           return `
             <tr>
               <td>${index + 1}</td>
               <td>${registration.teamName || 'N/A'}</td>
-              <td>${registration.teamLeader?.name || 'N/A'}</td>
+              <td>
+                <strong>Leader:</strong> ${registration.teamLeader?.name || 'N/A'}
+                ${registration.teamLeaderDetails?.usn ? `<br><span class="member-usn">(${registration.teamLeaderDetails.usn})</span>` : ''}
+                ${teamMembersHtml}
+              </td>
               <td>${registration.teamLeader?.mobile || 'N/A'}</td>
-              <td>${registration.teamLeader?.transactionId || 'N/A'}</td>
+              <td>${registration.teamLeaderDetails?.collegeName || 'N/A'}</td>
+              <td>${registration.transactionId || 'N/A'}</td>
             </tr>`;
         }).join('') :
-        `<tr><td colspan="5" class="no-data">No registrations found for this event</td></tr>`
+        `<tr><td colspan="6" class="no-data">No registrations found for this event</td></tr>`
       }
     </table>
   </body>
@@ -306,11 +354,12 @@ const exportRegistrationsToExcel = async (req, res) => {
       { header: 'Day', key: 'day', width: 8 },
       { header: 'Team Name', key: 'teamName', width: 20 },
       { header: 'Team Size', key: 'teamSize', width: 10 },
-      { header: 'Participant Name', key: 'leaderName', width: 20 },
+      { header: 'Team Leader Name', key: 'leaderName', width: 20 },
+      { header: 'Leader USN', key: 'leaderUsn', width: 15 },
+      { header: 'Team Members (Name - USN)', key: 'teamMembers', width: 40 },
       { header: 'Email', key: 'leaderEmail', width: 25 },
       { header: 'Mobile', key: 'leaderMobile', width: 15 },
       { header: 'College', key: 'collegeName', width: 30 },
-      { header: 'USN', key: 'usn', width: 15 },
       { header: 'Registration Date', key: 'registeredAt', width: 20 },
       { header: 'Payment Status', key: 'paymentStatus', width: 18 },
       { header: 'Payment Required', key: 'paymentRequired', width: 18 },
@@ -395,6 +444,18 @@ const exportRegistrationsToExcel = async (req, res) => {
         }
       };
 
+      // Format team members for display
+      let teamMembersText = '';
+      if (registration.teamMembers && registration.teamMembers.length > 0) {
+        teamMembersText = registration.teamMembers.map(member => {
+          const memberName = member.name || 'N/A';
+          const memberUsn = member.usn || 'N/A';
+          return `${memberName} - ${memberUsn}`;
+        }).join('; ');
+      } else {
+        teamMembersText = 'No additional members';
+      }
+
       worksheet.addRow({
         slNo: index + 1,
         eventName: registration.event ? registration.event.name : 'Unknown',
@@ -403,15 +464,16 @@ const exportRegistrationsToExcel = async (req, res) => {
         teamName: registration.teamName || 'N/A',
         teamSize: registration.teamSize || 1,
         leaderName: participantName,
+        leaderUsn: registration.teamLeaderDetails ? registration.teamLeaderDetails.usn : 'N/A',
+        teamMembers: teamMembersText,
         leaderEmail: participantEmail,
         leaderMobile: participantMobile,
         collegeName: registration.teamLeaderDetails ? registration.teamLeaderDetails.collegeName : 'N/A',
-        usn: registration.teamLeaderDetails ? registration.teamLeaderDetails.usn : 'N/A',
         registeredAt: registration.registeredAt ? new Date(registration.registeredAt).toLocaleString() : 'N/A',
         paymentStatus: registration.paymentStatus || 'N/A',
         paymentRequired: getPaymentRequiredText(registration.paymentStatus),
         paymentId: registration.paymentId || 'N/A',
-        transactionId: registration.teamLeader?.transactionId || 'N/A',
+        transactionId: registration.transactionId || 'N/A',
         notes: registrationNote
       });
     });
