@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const registrationSchema = new mongoose.Schema({
     teamName: {
         type: String,
-        required: function() { return this.teamSize > 2; }
+        required: function() { return this.teamSize > 1; }
     },
     teamLeader: {
         type: mongoose.Schema.Types.ObjectId,

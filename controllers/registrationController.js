@@ -329,7 +329,7 @@ const spotRegistration = async (req, res) => {
             return res.status(400).json({ error: "Team leader details are required" });
         }
 
-        // Determine payment status based on USN
+        // Determine payment status based on USN and event category
         let paymentStatus = 'not_required';
         if (event.fees > 0) {
             // Check if any team member is from SIT (same college)
@@ -342,7 +342,18 @@ const spotRegistration = async (req, res) => {
                 participant.usn && participant.usn.toLowerCase().startsWith('1si')
             );
 
-            paymentStatus = hasAnySITStudent ? 'not_required' : 'pending';
+            const isGamingEvent = event.category === 'gaming';
+
+            if (!hasAnySITStudent) {
+                // Other college students: pay on event day
+                paymentStatus = 'pay_on_event_day';
+            } else if (hasAnySITStudent && isGamingEvent) {
+                // Same college + gaming events: payment notification required
+                paymentStatus = 'payment_required';
+            } else {
+                // Same college + non-gaming events: free (SIT exemption)
+                paymentStatus = 'not_required';
+            }
         }
 
         // Create registration
