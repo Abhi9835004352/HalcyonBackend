@@ -53,7 +53,27 @@ const getAllRegistrations = async (req, res) => {
       return res.status(404).json({ error: "No registrations found" });
     }
 
-    res.json(registrations);
+    // Process registrations to add display information for spot registrations
+    const processedRegistrations = registrations.map(reg => {
+      const regObj = reg.toObject();
+
+      // For spot registrations, use the participant's information from teamLeaderDetails
+      if (regObj.spotRegistration && regObj.teamLeaderDetails) {
+        regObj.displayTeamLeader = {
+          name: regObj.teamLeaderDetails.name || 'Unknown Participant',
+          email: regObj.teamLeaderDetails.email || 'N/A',
+          mobile: regObj.teamLeaderDetails.mobile || 'N/A',
+          usn: regObj.teamLeaderDetails.usn || 'N/A'
+        };
+        regObj.isSpotRegistration = true;
+      } else {
+        regObj.isSpotRegistration = false;
+      }
+
+      return regObj;
+    });
+
+    res.json(processedRegistrations);
   } catch (err) {
     console.error('Error fetching registrations:', err);
     res.status(500).json({ error: err.message });
@@ -241,7 +261,11 @@ const generatePdf = async (req, res) => {
               <td>${index + 1}</td>
               <td>${registration.teamName || 'N/A'}</td>
               <td>
-                <strong>Leader:</strong> ${registration.teamLeader?.name || 'N/A'}
+                <strong>Leader:</strong> ${
+                  registration.spotRegistration && registration.teamLeaderDetails?.name
+                    ? registration.teamLeaderDetails.name
+                    : registration.teamLeader?.name || 'N/A'
+                }
                 ${registration.teamLeaderDetails?.usn ? `<br><span class="member-usn">(${registration.teamLeaderDetails.usn})</span>` : ''}
                 ${teamMembersHtml}
               </td>
@@ -392,17 +416,17 @@ const exportRegistrationsToExcel = async (req, res) => {
       // Check if this is a spot registration
       const isSpotRegistration = registration.spotRegistration !== null;
 
-      // For spot registrations, use the first team member as the participant
-      const participantName = isSpotRegistration && registration.teamMembers && registration.teamMembers.length > 0
-        ? registration.teamMembers[0].name
+      // For spot registrations, use the participant information from teamLeaderDetails
+      const participantName = isSpotRegistration && registration.teamLeaderDetails?.name
+        ? registration.teamLeaderDetails.name
         : (registration.teamLeader ? registration.teamLeader.name : 'Unknown');
 
-      const participantEmail = isSpotRegistration && registration.teamMembers && registration.teamMembers.length > 0
-        ? registration.teamMembers[0].email
+      const participantEmail = isSpotRegistration && registration.teamLeaderDetails?.email
+        ? registration.teamLeaderDetails.email
         : (registration.teamLeader ? registration.teamLeader.email : 'N/A');
 
-      const participantMobile = isSpotRegistration && registration.teamMembers && registration.teamMembers.length > 0
-        ? registration.teamMembers[0].mobile
+      const participantMobile = isSpotRegistration && registration.teamLeaderDetails?.mobile
+        ? registration.teamLeaderDetails.mobile
         : (registration.teamLeader ? registration.teamLeader.mobile : 'N/A');
 
       // Extract team member info from payment ID for spot registrations

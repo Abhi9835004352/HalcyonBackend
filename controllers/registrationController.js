@@ -108,6 +108,10 @@ const registerForEvent = async (req, res) => {
             teamLeaderDetails: {
                 collegeName: teamLeaderDetails.collegeName,
                 usn: teamLeaderDetails.usn,
+                // For spot registrations, store the actual participant's information
+                name: isSpotRegistration ? teamLeaderDetails.name || null : null,
+                email: isSpotRegistration ? teamLeaderDetails.email || null : null,
+                mobile: isSpotRegistration ? teamLeaderDetails.mobile || null : null,
             },
             teamName: teamName || null,
             teamMembers: teamMembers || [],
@@ -222,7 +226,7 @@ const viewMyRegistration = async (req, res) => {
         const processedRegistrations = registrations.map(reg => {
             const regObj = reg.toObject();
 
-            // If this is a spot registration, add a flag and set teamLeader info from the first team member
+            // If this is a spot registration, add a flag and set teamLeader info from teamLeaderDetails
             if (reg.spotRegistration) {
                 regObj.isSpotRegistration = true;
 
@@ -234,13 +238,13 @@ const viewMyRegistration = async (req, res) => {
                     id: reg.spotRegistration?._id || null
                 };
 
-                // If there are team members, use the first one's info as the "team leader" for display
-                if (reg.teamMembers && reg.teamMembers.length > 0) {
-                    const firstMember = reg.teamMembers[0];
+                // For spot registrations, use the participant's information from teamLeaderDetails
+                if (reg.teamLeaderDetails) {
                     regObj.displayTeamLeader = {
-                        name: firstMember.name || 'Unknown',
-                        email: firstMember.email || 'N/A',
-                        mobile: firstMember.mobile || 'N/A'
+                        name: reg.teamLeaderDetails.name || 'Unknown Participant',
+                        email: reg.teamLeaderDetails.email || 'N/A',
+                        mobile: reg.teamLeaderDetails.mobile || 'N/A',
+                        usn: reg.teamLeaderDetails.usn || 'N/A'
                     };
                 }
             }
@@ -363,6 +367,10 @@ const spotRegistration = async (req, res) => {
             teamLeaderDetails: {
                 collegeName: teamLeaderDetails.collegeName,
                 usn: teamLeaderDetails.usn,
+                // Store the actual participant's information for spot registrations
+                name: teamLeaderDetails.name || null,
+                email: teamLeaderDetails.email || null,
+                mobile: teamLeaderDetails.mobile || null,
             },
             teamName: teamName || null,
             teamMembers: teamMembers || [],

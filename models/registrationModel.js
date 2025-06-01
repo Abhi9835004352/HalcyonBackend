@@ -17,6 +17,19 @@ const registrationSchema = new mongoose.Schema({
         usn: {
             type: String,
             required: true,
+        },
+        // For spot registrations, store the actual participant's name
+        name: {
+            type: String,
+            required: false,
+        },
+        email: {
+            type: String,
+            required: false,
+        },
+        mobile: {
+            type: String,
+            required: false,
         }
     },
     teamMembers: [{
