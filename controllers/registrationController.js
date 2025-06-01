@@ -62,9 +62,9 @@ const registerForEvent = async (req, res) => {
             }
         }
 
-        // Validate team name for larger teams
-        if (teamSize > 2 && !teamName) {
-            return res.status(400).json({ error: "Team name is required for teams with more than 2 members" });
+        // Validate team name for team events (teamSize > 1)
+        if (teamSize > 1 && !teamName) {
+            return res.status(400).json({ error: "Team name is required for team events with more than 1 participant" });
         }
 
         // Validate team leader details
@@ -120,6 +120,7 @@ const registerForEvent = async (req, res) => {
             paymentId: paymentId || null,
             orderId: orderId || null,
             transactionId: transactionId || null,
+            paymentMode: null, // Default to null for regular registrations
             paymentStatus: (() => {
                 if (event.fees === 0) return 'not_required';
 
@@ -161,10 +162,12 @@ const registerForEvent = async (req, res) => {
         if (err.name === 'ValidationError') {
             const validationErrors = Object.values(err.errors).map(e => e.message);
             console.error('Validation errors:', validationErrors);
+            console.error('Full validation error:', err.message);
             return res.status(400).json({
                 error: 'Validation failed',
                 details: validationErrors,
-                fullError: err.message
+                fullError: err.message,
+                message: `Registration validation failed: ${validationErrors.join(', ')}`
             });
         }
 

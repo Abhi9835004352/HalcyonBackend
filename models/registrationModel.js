@@ -2,7 +2,21 @@ const mongoose = require('mongoose');
 const registrationSchema = new mongoose.Schema({
     teamName: {
         type: String,
-        required: function() { return this.teamSize > 1; }
+        required: function() {
+            // Team name is required for team events (teamSize > 1)
+            // But not required for individual events (teamSize = 1)
+            return this.teamSize && this.teamSize > 1;
+        },
+        validate: {
+            validator: function(value) {
+                // If teamSize > 1, teamName must be provided and not empty
+                if (this.teamSize && this.teamSize > 1) {
+                    return value && typeof value === 'string' && value.trim().length > 0;
+                }
+                return true; // For individual events, teamName is optional
+            },
+            message: 'Team name is required for team events with more than 1 participant'
+        }
     },
     teamLeader: {
         type: mongoose.Schema.Types.ObjectId,
@@ -88,7 +102,7 @@ const registrationSchema = new mongoose.Schema({
     },
     paymentMode: {
         type: String,
-        enum: ['cash', 'erp', 'upi', 'online'],
+        enum: ['cash', 'erp', 'upi', 'online', null],
         default: null
     },
     paymentStatus: {
