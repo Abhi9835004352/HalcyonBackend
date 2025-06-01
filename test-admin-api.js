@@ -6,8 +6,8 @@ const testAdminAPI = async () => {
     
     // Step 1: Login as admin
     const loginResponse = await axios.post('http://localhost:4000/api/auth/login', {
-      email: 'admin@halcyon.com',
-      password: 'admin123'
+      email: 'admin@123.com',
+      password: 'pass@admin'
     });
     
     console.log('✅ Login successful!');

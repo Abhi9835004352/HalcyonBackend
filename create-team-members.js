@@ -47,6 +47,13 @@ const createTeamMembers = async () => {
         mobile: '9876543214',
         password: 'team123',
         role: 'team'
+      },
+        {
+        name: 'Team Member 6',
+        email: 'team6@halcyon.com',
+        mobile: '9876543214',
+        password: 'team123',
+        role: 'team'
       }
     ];
 

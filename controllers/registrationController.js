@@ -315,7 +315,14 @@ const spotRegistration = async (req, res) => {
             teamName,
             teamMembers,
             teamSize,
-            teamLeaderDetails
+            teamLeaderDetails,
+            collegeCode,
+            paymentStatus: frontendPaymentStatus,
+            paymentMode: frontendPaymentMode,
+            paymentId,
+            orderId,
+            transactionId,
+            notes
         } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
@@ -333,10 +340,35 @@ const spotRegistration = async (req, res) => {
             return res.status(400).json({ error: "Team leader details are required" });
         }
 
-        // Determine payment status based on USN and event category
-        let paymentStatus = 'not_required';
-        if (event.fees > 0) {
-            // Check if any team member is from SIT (same college)
+        // Use frontend provided payment mode, or extract from notes as fallback
+        let paymentMode = frontendPaymentMode || null;
+
+        console.log('Frontend provided payment mode:', frontendPaymentMode);
+        console.log('Frontend provided payment status:', frontendPaymentStatus);
+
+        // If no frontend payment mode provided, extract from notes as fallback
+        if (!paymentMode && notes && typeof notes === 'string') {
+            const noteText = notes.toLowerCase();
+            if (noteText.includes('cash')) {
+                paymentMode = 'cash';
+            } else if (noteText.includes('erp')) {
+                paymentMode = 'erp';
+            } else if (noteText.includes('upi')) {
+                paymentMode = 'upi';
+            }
+            console.log('Extracted payment mode from notes:', paymentMode);
+        }
+
+        // Determine payment status - IMPORTANT: Payment is calculated per TEAM, not per individual member
+        // For team events, only ONE payment is required per team, regardless of team size
+        let paymentStatus;
+
+        if (frontendPaymentStatus) {
+            // Use the frontend provided payment status (for spot registrations with payment)
+            paymentStatus = frontendPaymentStatus;
+            console.log('Using frontend provided payment status:', paymentStatus);
+        } else if (event.fees > 0) {
+            // Calculate payment status based on USN and event category (for regular registrations)
             const allParticipants = [
                 { usn: teamLeaderDetails.usn },
                 ...(teamMembers || [])
@@ -358,6 +390,30 @@ const spotRegistration = async (req, res) => {
                 // Same college + non-gaming events: free (SIT exemption)
                 paymentStatus = 'not_required';
             }
+            console.log('Calculated payment status based on USN and event:', paymentStatus);
+        } else {
+            // Free event
+            paymentStatus = 'not_required';
+            console.log('Free event - payment not required');
+        }
+
+        console.log('Final payment mode to be stored:', paymentMode);
+        console.log('Final payment status to be stored:', paymentStatus);
+
+        // For team events, check if a registration already exists for this event with the same team name
+        // This prevents multiple team members from creating separate registrations for the same team
+        if (teamName && teamSize > 1) {
+            const existingTeamRegistration = await Registration.findOne({
+                event: eventId,
+                teamName: teamName,
+                teamSize: teamSize
+            });
+
+            if (existingTeamRegistration) {
+                return res.status(400).json({
+                    error: `A team registration already exists for "${teamName}" in this event. Only one registration per team is allowed.`
+                });
+            }
         }
 
         // Create registration
@@ -372,12 +428,21 @@ const spotRegistration = async (req, res) => {
                 email: teamLeaderDetails.email || null,
                 mobile: teamLeaderDetails.mobile || null,
             },
+            collegeCode: collegeCode || null, // Store college code for team dashboard registrations
             teamName: teamName || null,
             teamMembers: teamMembers || [],
             teamSize: teamSize || 1,
             spotRegistration: req.user._id, // Mark as spot registration
-            paymentStatus: paymentStatus
+            paymentStatus: paymentStatus,
+            paymentMode: paymentMode,
+            paymentId: paymentId || null,
+            orderId: orderId || null,
+            transactionId: transactionId || null,
+            notes: notes || null
         });
+
+        console.log('Created registration with payment mode:', registration.paymentMode);
+        console.log('Created registration with payment status:', registration.paymentStatus);
 
         res.status(201).json({
             message: 'Spot registration completed successfully',

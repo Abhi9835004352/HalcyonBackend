@@ -32,6 +32,12 @@ const registrationSchema = new mongoose.Schema({
             required: false,
         }
     },
+    // College code field - only used for team dashboard (spot) registrations
+    collegeCode: {
+        type: String,
+        required: false,
+        default: null
+    },
     teamMembers: [{
         name: {
             type: String,
@@ -78,6 +84,11 @@ const registrationSchema = new mongoose.Schema({
     },
     transactionId: {
         type: String,
+        default: null
+    },
+    paymentMode: {
+        type: String,
+        enum: ['cash', 'erp', 'upi', 'online'],
         default: null
     },
     paymentStatus: {
