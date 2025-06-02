@@ -28,6 +28,13 @@ const createAdminUser = async () => {
       mobile: '9999999999',
       password: 'pass@admin', // This will be hashed automatically
       role: 'admin'
+    },
+  {
+      name: 'Admin User',
+      email: 'admin1@123.com',
+      mobile: '9999999999',
+      password: 'pass@admin', // This will be hashed automatically
+      role: 'admin'
     });
 
     await adminUser.save();
