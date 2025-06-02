@@ -6,8 +6,10 @@ const fs = require('fs');
 const path = require('path');
 const Excel = require('exceljs');
 const mongoose = require('mongoose');
+const { sendRegistrationEmail } = require('../utils/mailer');
 const imagePath = path.join(__dirname, '../resources/image.png');
 let imageBase64 = '';
+const {sendRegistrationEmail} = require('../utils/mailer.js');
 
 // Define EVENT_CATEGORIES constant for use in Excel exports
 const EVENT_CATEGORIES = [
@@ -987,6 +989,71 @@ const deleteRegistration = async (req, res) => {
   }
 }
 
+const sendBulkRegistrationEmails = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    // Fetch the event details
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    // Fetch all registrations for this event
+    const registrations = await Registration.find({ event: eventId });
+    let sentCount = 0;
+
+    // Loop through each registration
+    for (const reg of registrations) {
+      const leader = reg.teamLeaderDetails;
+      const leaderEmail = leader?.email;
+      const leaderName = leader?.name || "Team Leader";
+      const teamName = reg.teamName || "N/A";
+      const teamSize = reg.teamSize || "N/A";
+
+      if (leaderEmail) {
+        // Send HTML email
+        await sendRegistrationEmail(
+          leaderEmail,
+          `Registration Confirmation for ${event.name}`,
+          `
+          <html>
+            <body style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 20px; color: #333;">
+              <table width="100%" style="max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.1); padding: 20px;">
+                <tr>
+                  <td>
+                    <h2 style="color: #2c3e50;">Hello ${leaderName},</h2>
+                    <p>Thank you for registering for <strong>${event.name}</strong>!</p>
+                    <p><strong>Team Name:</strong> ${teamName}<br/>
+                       <strong>Team Size:</strong> ${teamSize}</p>
+                    <p>We're thrilled to have your team onboard. Make sure to stay tuned for further updates and instructions related to the event.</p>
+                    <p>If you have any questions or need assistance, feel free to reply to this email.</p>
+                    <p style="margin-top: 30px;">Warm regards,<br/>
+                    <strong>The ${event.name} Team</strong></p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-size: 12px; color: #777; padding-top: 30px; border-top: 1px solid #eee;">
+                    <p>If you received this email in error, please ignore it or contact us at <a href="mailto:support@event.com" style="color: #555;">support@event.com</a>.</p>
+                    <p style="margin: 0;">&copy; ${new Date().getFullYear()} ${event.name}. All rights reserved.</p>
+                  </td>
+                </tr>
+              </table>
+            </body>
+          </html>
+          `
+        );
+        sentCount++;
+      }
+    }
+
+    return res.json({ message: `Emails sent to ${sentCount} team leaders.` });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Failed to send emails" });
+  }
+};
+
+
 module.exports = {
   getAllUsers,
   getAllRegistrations,
@@ -997,5 +1064,7 @@ module.exports = {
   exportRegistrationsToExcel,
   exportSingleEventToExcel,
   toggleEventRegistration,
-  deleteRegistration
+  deleteRegistration,
+  sendBulkRegistrationEmails
 };
+

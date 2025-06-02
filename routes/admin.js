@@ -12,6 +12,7 @@ const {
     exportSingleEventToExcel,
     toggleEventRegistration,
     deleteRegistration,
+    sendBulkRegistrationEmails
 } = require('../controllers/adminController');
 
 
@@ -24,4 +25,5 @@ router.delete('/event/:id', auth, allowedRoles('admin'), deleteEvent);
 router.put('/event/:id', auth, allowedRoles('admin'), editEvent);
 router.patch('/event/:eventId/toggle-registration', auth, allowedRoles('admin'), toggleEventRegistration);
 router.delete('/registration/:id', auth, allowedRoles('admin'), deleteRegistration);
+router.post('/send-bulk-registration-emails/:eventID',sendBulkRegistrationEmails);
 module.exports = router;
