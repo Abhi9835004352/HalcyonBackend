@@ -349,7 +349,7 @@ const generateJudgePdf = async (req, res) => {
 
 const generatePdf = async (req, res) => {
   try {
-    console.log('PDF generation started for event');
+    console.log('Registration PDF generation started using PDFKit (production-compatible)');
     const { eventID } = req.params;
     const event = await Event.findById(eventID);
     if (!event) return res.status(404).json({ error: "Event not found" });
@@ -362,320 +362,279 @@ const generatePdf = async (req, res) => {
       .populate('event', 'name date venue category day fees')
       .lean();
 
-    // Convert logos to base64
+    console.log(`Found ${registrations.length} registrations for registration PDF`);
+
+    // Create a new PDF document
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: 50,
+      bufferPages: true
+    });
+
+    // Collect the PDF data
+    const chunks = [];
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => {
+      const pdfBuffer = Buffer.concat(chunks);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=${event.name.replace(/\s+/g, '_')}_Registration_Report_${Date.now()}.pdf`);
+      res.send(pdfBuffer);
+    });
+
+    // Load and add the SIT logo (only left logo as per user preference)
     const sitLogoPath = path.join(__dirname, '../resources/images/sit_logo-removebg-preview.png');
-    const finalLogoPath = path.join(__dirname, '../resources/images/final LOGO.png');
-
-    let sitLogoBase64 = '';
-    let finalLogoBase64 = '';
-
     try {
-      const sitLogoBuffer = fs.readFileSync(sitLogoPath);
-      sitLogoBase64 = `data:image/png;base64,${sitLogoBuffer.toString('base64')}`;
+      if (fs.existsSync(sitLogoPath)) {
+        doc.image(sitLogoPath, 50, 50, { width: 100, height: 100 });
+        console.log('SIT logo added successfully');
+      }
     } catch (error) {
-      console.log('SIT logo not found, proceeding without left logo');
-      sitLogoBase64 = '';
-    }
-
-    try {
-      const finalLogoBuffer = fs.readFileSync(finalLogoPath);
-      finalLogoBase64 = `data:image/png;base64,${finalLogoBuffer.toString('base64')}`;
-    } catch (error) {
-      console.log('Final logo not found, proceeding without right logo');
-      finalLogoBase64 = '';
+      console.log('Logo not found, proceeding without logo');
     }
 
     if (!registrations) return res.status(404).json({ error: "No registrations found" });
 
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Halcyon 2025 Registration Report</title>
-    <style>
-        body {
-            font-family: 'Times New Roman', serif;
-            margin: 0;
-            padding: 20px;
-            color: #000;
-            line-height: 1.2;
-        }
+    // Add the title - perfectly centered considering logo space
+    doc.fontSize(48)
+       .font('Times-Bold')
+       .text('HALCYON 2025', 170, 80, {
+         align: 'center',
+         width: 300
+       });
 
-        .WordSection1 {
-            max-width: 800px;
-            margin: 0 auto;
-        }
+    // Add event name
+    doc.fontSize(14)
+       .font('Times-Roman')
+       .text(`Event: ${event.name}`, 50, 160, { align: 'left' });
 
-        .MsoNormal {
-            margin: 0;
-            padding: 0;
-        }
+    // Create the table with perfect dimensions
+    const startY = 200;
+    const pageWidth = 595; // A4 width in points
+    const leftMargin = 50;
+    const rightMargin = 50;
+    const tableWidth = pageWidth - leftMargin - rightMargin; // 495 points exactly
+    const rowHeight = 30;
 
-        .header-section {
-            text-align: center;
-            margin-bottom: 30px;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .header-content {
-            display: inline-block;
-            vertical-align: top;
-        }
-
-        .logo-left {
-            width: 93px;
-            height: 98px;
-            margin-right: 20px;
-            vertical-align: middle;
-        }
-
-        .logo-right {
-            width: 133px;
-            height: 109px;
-            margin-left: 20px;
-            vertical-align: middle;
-        }
-
-        .title-text {
-            font-size: 46pt;
-            font-weight: bold;
-            font-family: 'Times New Roman', serif;
-            display: inline-block;
-            vertical-align: middle;
-            margin: 0 20px;
-            line-height: 1;
-        }
-
-        .event-info {
-            margin: 30px 0;
-            text-align: center;
-            font-size: 18pt;
-            font-weight: bold;
-        }
-
-        .registration-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            font-size: 12pt;
-        }
-
-        .registration-table th,
-        .registration-table td {
-            border: 1px solid #000;
-            padding: 8px;
-            text-align: left;
-            vertical-align: top;
-        }
-
-        .registration-table th {
-            background-color: #f0f0f0;
-            font-weight: bold;
-            text-align: center;
-        }
-
-        .registration-table td:first-child {
-            text-align: center;
-            width: 60px;
-        }
-
-        .registration-table td:nth-child(2) {
-            text-align: center;
-            width: 100px;
-        }
-
-        .registration-table td:nth-child(3) {
-            width: 200px;
-        }
-
-        .registration-table td:nth-child(4) {
-            width: 150px;
-        }
-
-        .registration-table td:nth-child(5) {
-            width: 120px;
-        }
-
-        .team-members-list {
-            margin-top: 5px;
-            font-size: 10pt;
-            color: #555;
-        }
-
-        .team-member-item {
-            margin: 2px 0;
-            padding: 1px 0;
-        }
-
-        .member-name {
-            font-weight: bold;
-        }
-
-        .member-usn {
-            color: #666;
-            font-style: italic;
-        }
-
-        .no-registrations {
-            text-align: center;
-            padding: 20px;
-            font-style: italic;
-            color: #666;
-        }
-
-        .footer-info {
-            margin-top: 40px;
-            text-align: center;
-            font-size: 10pt;
-            color: #666;
-        }
-
-        @media print {
-            body {
-                margin: 0;
-                padding: 15px;
-            }
-
-            .WordSection1 {
-                max-width: none;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="WordSection1">
-        <div class="header-section">
-            <img class="logo-left" src="${sitLogoBase64}" alt="SIT Logo">
-            <span class="title-text">HALCYON 2025</span>
-            <img class="logo-right" src="${finalLogoBase64}" alt="Halcyon Logo">
-        </div>
-
-        <div class="event-info">
-            ${event.name}
-        </div>
-
-        <table class="registration-table">
-            <thead>
-                <tr>
-                    <th>Sl. No.</th>
-                    <th>College Code</th>
-                    <th>Name</th>
-                    <th>USN</th>
-                    <th>Contact No.</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${registrations.length > 0 ?
-                  (() => {
-                    let teamIndex = 0;
-                    return registrations.map((registration) => {
-                      teamIndex++;
-                      const rows = [];
-
-                      // Get team leader details
-                      const leaderName = registration.spotRegistration && registration.teamLeaderDetails?.name
-                        ? registration.teamLeaderDetails.name
-                        : registration.teamLeader?.name || 'N/A';
-                      const leaderUSN = registration.teamLeaderDetails?.usn || 'N/A';
-                      const leaderMobile = registration.teamLeader?.mobile || 'N/A';
-
-                      // Check if this is a team event (has team members or team name)
-                      const isTeamEvent = (registration.teamMembers && registration.teamMembers.length > 0) || registration.teamName;
-
-                      if (isTeamEvent) {
-                        // Add team name row with team leader name
-                        rows.push(`
-                          <tr style="font-weight: bold; background-color: #f8f9fa;">
-                            <td>${teamIndex}</td>
-                            <td></td>
-                            <td>${registration.teamName || 'Team'} - ${leaderName} (Team Lead)</td>
-                            <td></td>
-                            <td></td>
-                          </tr>`);
-
-                        // Add team leader details
-                        rows.push(`
-                          <tr>
-                            <td></td>
-                            <td></td>
-                            <td>${leaderName}</td>
-                            <td>${leaderUSN}</td>
-                            <td>${leaderMobile}</td>
-                          </tr>`);
-
-                        // Add team members if any
-                        if (registration.teamMembers && registration.teamMembers.length > 0) {
-                          registration.teamMembers.forEach(member => {
-                            rows.push(`
-                              <tr>
-                                <td></td>
-                                <td></td>
-                                <td>${member.name || 'N/A'}</td>
-                                <td>${member.usn || 'N/A'}</td>
-                                <td>${member.mobile || 'N/A'}</td>
-                              </tr>`);
-                          });
-                        }
-
-                        // Add blank line after team
-                        rows.push(`
-                          <tr style="height: 20px;">
-                            <td colspan="5" style="border: none; background-color: transparent;"></td>
-                          </tr>`);
-                      } else {
-                        // Individual participant (not a team event)
-                        rows.push(`
-                          <tr>
-                            <td>${teamIndex}</td>
-                            <td></td>
-                            <td>${leaderName}</td>
-                            <td>${leaderUSN}</td>
-                            <td>${leaderMobile}</td>
-                          </tr>`);
-                      }
-
-                      return rows.join('');
-                    }).join('');
-                  })() :
-                  `<tr><td colspan="5" class="no-registrations">No registrations found for this event</td></tr>`
-                }
-            </tbody>
-        </table>
-
-        <div class="footer-info">
-            <p>Generated on: ${new Date().toLocaleDateString()}</p>
-            <p>© Halcyon 2025 - All rights reserved</p>
-        </div>
-    </div>
-</body>
-</html>
-`;
-
-    const options = {
-      format: "A4",
-      orientation: "portrait",
-      border: {
-        top: "0.5in",
-        right: "0.5in",
-        bottom: "0.5in",
-        left: "0.5in"
-      },
-      type: "pdf",
-      quality: "100",
+    // Column widths for registration table
+    const colWidths = {
+      slNo: 60,        // Sl. No.
+      collegeCode: 100, // College Code (empty as per user preference)
+      name: 180,       // Name
+      usn: 100,        // USN
+      contact: 155     // Contact No.
     };
-    pdf.create(html, options).toBuffer((err, buffer) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: "Error generating PDF" });
+
+    // Draw table headers
+    let currentY = startY;
+    doc.fontSize(12).font('Times-Bold');
+
+    // Header background
+    doc.rect(leftMargin, currentY, tableWidth, rowHeight).fillAndStroke('#f0f0f0', '#000000');
+
+    // Header text
+    doc.fillColor('#000000');
+    doc.text('Sl. No.', leftMargin + 5, currentY + 8, { width: colWidths.slNo - 10, align: 'center' });
+    doc.text('College Code', leftMargin + colWidths.slNo + 5, currentY + 8, { width: colWidths.collegeCode - 10, align: 'center' });
+    doc.text('Name', leftMargin + colWidths.slNo + colWidths.collegeCode + 5, currentY + 8, { width: colWidths.name - 10, align: 'center' });
+    doc.text('USN', leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + 5, currentY + 8, { width: colWidths.usn - 10, align: 'center' });
+    doc.text('Contact No.', leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + colWidths.usn + 5, currentY + 8, { width: colWidths.contact - 10, align: 'center' });
+
+    currentY += rowHeight;
+
+    // Draw vertical lines for headers
+    let xPos = leftMargin;
+    [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
+      if (index > 0) {
+        doc.moveTo(xPos, startY).lineTo(xPos, currentY).stroke();
       }
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename=${event.name.replace(/\s+/g, '_')}_Registration_Report_${Date.now()}.pdf`);
-      res.send(buffer);
-    })
+      xPos += width;
+    });
+
+    // Process registrations data
+    if (registrations.length === 0) {
+      // No registrations found
+      doc.fontSize(12).font('Times-Roman');
+      doc.rect(leftMargin, currentY, tableWidth, rowHeight).stroke();
+      doc.text('No registrations found for this event', leftMargin + 5, currentY + 8, {
+        width: tableWidth - 10,
+        align: 'center'
+      });
+      currentY += rowHeight;
+      // Process registrations data
+      let teamIndex = 0;
+      registrations.forEach((registration) => {
+        teamIndex++;
+
+        // Get team leader details
+        const leaderName = registration.spotRegistration && registration.teamLeaderDetails?.name
+          ? registration.teamLeaderDetails.name
+          : registration.teamLeader?.name || 'N/A';
+        const leaderUSN = registration.teamLeaderDetails?.usn || 'N/A';
+        const leaderMobile = registration.teamLeader?.mobile || 'N/A';
+
+        // Check if this is a team event (has team members or team name)
+        const isTeamEvent = (registration.teamMembers && registration.teamMembers.length > 0) || registration.teamName;
+
+        doc.fontSize(10).font('Times-Roman');
+
+        if (isTeamEvent) {
+          // Add team name row with team leader name (bold background)
+          doc.rect(leftMargin, currentY, tableWidth, rowHeight).fillAndStroke('#f8f9fa', '#000000');
+          doc.fillColor('#000000');
+          doc.text(teamIndex.toString(), leftMargin + 5, currentY + 8, { width: colWidths.slNo - 10, align: 'center' });
+          doc.text('', leftMargin + colWidths.slNo + 5, currentY + 8, { width: colWidths.collegeCode - 10, align: 'center' });
+          doc.text(`${registration.teamName || 'Team'} - ${leaderName} (Team Lead)`, leftMargin + colWidths.slNo + colWidths.collegeCode + 5, currentY + 8, { width: colWidths.name - 10 });
+          doc.text('', leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + 5, currentY + 8, { width: colWidths.usn - 10 });
+          doc.text('', leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + colWidths.usn + 5, currentY + 8, { width: colWidths.contact - 10 });
+
+          // Draw vertical lines for team header
+          let xPos = leftMargin;
+          [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
+            if (index > 0) {
+              doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
+            }
+            xPos += width;
+          });
+
+          currentY += rowHeight;
+
+          // Add team leader details
+          doc.rect(leftMargin, currentY, tableWidth, rowHeight).stroke();
+          doc.text('', leftMargin + 5, currentY + 8, { width: colWidths.slNo - 10, align: 'center' });
+          doc.text('', leftMargin + colWidths.slNo + 5, currentY + 8, { width: colWidths.collegeCode - 10, align: 'center' });
+          doc.text(leaderName, leftMargin + colWidths.slNo + colWidths.collegeCode + 5, currentY + 8, { width: colWidths.name - 10 });
+          doc.text(leaderUSN, leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + 5, currentY + 8, { width: colWidths.usn - 10 });
+          doc.text(leaderMobile, leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + colWidths.usn + 5, currentY + 8, { width: colWidths.contact - 10 });
+
+          // Draw vertical lines for team leader
+          xPos = leftMargin;
+          [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
+            if (index > 0) {
+              doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
+            }
+            xPos += width;
+          });
+
+          currentY += rowHeight;
+
+          // Add team members if any
+          if (registration.teamMembers && registration.teamMembers.length > 0) {
+            registration.teamMembers.forEach(member => {
+              doc.rect(leftMargin, currentY, tableWidth, rowHeight).stroke();
+              doc.text('', leftMargin + 5, currentY + 8, { width: colWidths.slNo - 10, align: 'center' });
+              doc.text('', leftMargin + colWidths.slNo + 5, currentY + 8, { width: colWidths.collegeCode - 10, align: 'center' });
+              doc.text(member.name || 'N/A', leftMargin + colWidths.slNo + colWidths.collegeCode + 5, currentY + 8, { width: colWidths.name - 10 });
+              doc.text(member.usn || 'N/A', leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + 5, currentY + 8, { width: colWidths.usn - 10 });
+              doc.text(member.mobile || 'N/A', leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + colWidths.usn + 5, currentY + 8, { width: colWidths.contact - 10 });
+
+              // Draw vertical lines for team member
+              xPos = leftMargin;
+              [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
+                if (index > 0) {
+                  doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
+                }
+                xPos += width;
+              });
+
+              currentY += rowHeight;
+
+              // Check if we need a new page
+              if (currentY > 720) {
+                doc.addPage();
+                currentY = 50;
+
+                // Redraw headers on new page
+                doc.fontSize(14).font('Times-Bold');
+                doc.text(`Event: ${event.name} (continued)`, leftMargin, currentY, { align: 'left' });
+                currentY += 30;
+
+                // Redraw table headers
+                doc.fontSize(12).font('Times-Bold');
+                doc.rect(leftMargin, currentY, tableWidth, rowHeight).fillAndStroke('#f0f0f0', '#000000');
+                doc.fillColor('#000000');
+                doc.text('Sl. No.', leftMargin + 5, currentY + 8, { width: colWidths.slNo - 10, align: 'center' });
+                doc.text('College Code', leftMargin + colWidths.slNo + 5, currentY + 8, { width: colWidths.collegeCode - 10, align: 'center' });
+                doc.text('Name', leftMargin + colWidths.slNo + colWidths.collegeCode + 5, currentY + 8, { width: colWidths.name - 10, align: 'center' });
+                doc.text('USN', leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + 5, currentY + 8, { width: colWidths.usn - 10, align: 'center' });
+                doc.text('Contact No.', leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + colWidths.usn + 5, currentY + 8, { width: colWidths.contact - 10, align: 'center' });
+
+                currentY += rowHeight;
+
+                // Draw vertical lines for headers
+                xPos = leftMargin;
+                [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
+                  if (index > 0) {
+                    doc.moveTo(xPos, startY).lineTo(xPos, currentY).stroke();
+                  }
+                  xPos += width;
+                });
+
+                doc.fontSize(10).font('Times-Roman');
+              }
+            });
+          }
+
+          // Add blank line after team
+          currentY += 10;
+        } else {
+          // Individual participant (not a team event)
+          doc.rect(leftMargin, currentY, tableWidth, rowHeight).stroke();
+          doc.text(teamIndex.toString(), leftMargin + 5, currentY + 8, { width: colWidths.slNo - 10, align: 'center' });
+          doc.text('', leftMargin + colWidths.slNo + 5, currentY + 8, { width: colWidths.collegeCode - 10, align: 'center' });
+          doc.text(leaderName, leftMargin + colWidths.slNo + colWidths.collegeCode + 5, currentY + 8, { width: colWidths.name - 10 });
+          doc.text(leaderUSN, leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + 5, currentY + 8, { width: colWidths.usn - 10 });
+          doc.text(leaderMobile, leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + colWidths.usn + 5, currentY + 8, { width: colWidths.contact - 10 });
+
+          // Draw vertical lines for individual
+          let xPos = leftMargin;
+          [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
+            if (index > 0) {
+              doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
+            }
+            xPos += width;
+          });
+
+          currentY += rowHeight;
+
+          // Check if we need a new page
+          if (currentY > 720) {
+            doc.addPage();
+            currentY = 50;
+
+            // Redraw headers on new page
+            doc.fontSize(14).font('Times-Bold');
+            doc.text(`Event: ${event.name} (continued)`, leftMargin, currentY, { align: 'left' });
+            currentY += 30;
+
+            // Redraw table headers
+            doc.fontSize(12).font('Times-Bold');
+            doc.rect(leftMargin, currentY, tableWidth, rowHeight).fillAndStroke('#f0f0f0', '#000000');
+            doc.fillColor('#000000');
+            doc.text('Sl. No.', leftMargin + 5, currentY + 8, { width: colWidths.slNo - 10, align: 'center' });
+            doc.text('College Code', leftMargin + colWidths.slNo + 5, currentY + 8, { width: colWidths.collegeCode - 10, align: 'center' });
+            doc.text('Name', leftMargin + colWidths.slNo + colWidths.collegeCode + 5, currentY + 8, { width: colWidths.name - 10, align: 'center' });
+            doc.text('USN', leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + 5, currentY + 8, { width: colWidths.usn - 10, align: 'center' });
+            doc.text('Contact No.', leftMargin + colWidths.slNo + colWidths.collegeCode + colWidths.name + colWidths.usn + 5, currentY + 8, { width: colWidths.contact - 10, align: 'center' });
+
+            currentY += rowHeight;
+
+            // Draw vertical lines for headers
+            let xPos = leftMargin;
+            [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
+              if (index > 0) {
+                doc.moveTo(xPos, startY).lineTo(xPos, currentY).stroke();
+              }
+              xPos += width;
+            });
+
+            doc.fontSize(10).font('Times-Roman');
+          }
+        }
+      });
+    }
+
+    // Finalize the PDF
+    doc.end();
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
