@@ -117,12 +117,25 @@ const generateJudgePdf = async (req, res) => {
     // Get registrations with participant details
     const registrations = await Registration.find({ event: eventID })
       .populate('teamLeader', 'name email mobile')
-      .populate('teamMembers', 'name email mobile usn')
-      .populate('teamLeaderDetails', 'name usn collegeName')
+      .populate('spotRegistration', 'name email mobile')  // Populate spot registration user details
       .populate('event', 'name date venue category day fees')
       .lean();
 
+    // Note: teamLeaderDetails and teamMembers are embedded documents, not references, so no need to populate them
+
     console.log(`Found ${registrations.length} registrations for judge PDF`);
+
+    // Debug: Log registration data structure to understand the issue
+    if (registrations.length > 0) {
+      console.log('Sample registration data structure:');
+      console.log('Registration 0:', {
+        teamName: registrations[0].teamName,
+        spotRegistration: registrations[0].spotRegistration,
+        teamLeaderDetails: registrations[0].teamLeaderDetails,
+        teamLeader: registrations[0].teamLeader,
+        teamMembers: registrations[0].teamMembers?.length || 0
+      });
+    }
 
     // Read and encode the logos as base64 FIRST (before using them in template)
     const sitLogoPath = path.join(__dirname, '../resources/images/sit_logo-removebg-preview.png');
@@ -356,7 +369,7 @@ const generateJudgePdf = async (req, res) => {
         }
 
         body {
-            font-family: 'Times New Roman', 'Times', serif;
+            font-family: 'Times New Roman', 'Times', 'Liberation Serif', 'DejaVu Serif', serif;
             margin: 0;
             padding: 20px;
             color: #000;
@@ -365,38 +378,60 @@ const generateJudgePdf = async (req, res) => {
             background: white;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            /* Force consistent rendering */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
         }
 
-        /* Header section with absolute positioning for consistent layout */
+        /* Header section with table layout for maximum compatibility */
         .header-container {
             width: 100%;
-            height: 120px;
             margin-bottom: 30px;
-            position: relative;
             border: none;
         }
 
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .header-table td {
+            border: none;
+            padding: 0;
+            vertical-align: middle;
+        }
+
+        .logo-cell {
+            width: 120px;
+            text-align: left;
+            padding-right: 20px;
+        }
+
+        .title-cell {
+            text-align: center;
+            padding: 0 10px;
+        }
+
+        .spacer-cell {
+            width: 120px;
+        }
+
         .logo-left {
-            position: absolute;
-            left: 0;
-            top: 0;
             width: 110px;
             height: 110px;
             display: block;
         }
 
         .title-text {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 52pt;
+            font-size: 48pt;
             font-weight: bold;
-            font-family: 'Times New Roman', 'Times', serif;
+            font-family: 'Times New Roman', 'Times', 'Liberation Serif', 'DejaVu Serif', serif;
             margin: 0;
-            line-height: 1;
+            line-height: 1.1;
             text-align: center;
-            white-space: nowrap;
+            display: inline-block;
         }
 
         .subtitle {
@@ -405,7 +440,7 @@ const generateJudgePdf = async (req, res) => {
             font-size: 20pt;
             text-decoration: underline;
             font-weight: bold;
-            font-family: 'Times New Roman', 'Times', serif;
+            font-family: 'Times New Roman', 'Times', 'Liberation Serif', 'DejaVu Serif', serif;
         }
 
         .event-label {
@@ -413,7 +448,7 @@ const generateJudgePdf = async (req, res) => {
             margin: 15px 0 25px 0;
             font-size: 16pt;
             font-weight: normal;
-            font-family: 'Times New Roman', 'Times', serif;
+            font-family: 'Times New Roman', 'Times', 'Liberation Serif', 'DejaVu Serif', serif;
         }
 
         /* Table styles with fixed layout for consistent rendering */
@@ -422,7 +457,7 @@ const generateJudgePdf = async (req, res) => {
             border-collapse: collapse;
             margin-top: 15px;
             table-layout: fixed;
-            font-family: 'Times New Roman', 'Times', serif;
+            font-family: 'Times New Roman', 'Times', 'Liberation Serif', 'DejaVu Serif', serif;
         }
 
         .judge-table th,
@@ -458,7 +493,9 @@ const generateJudgePdf = async (req, res) => {
             }
             .header-container {
                 page-break-inside: avoid;
-                height: 120px;
+            }
+            .header-table {
+                page-break-inside: avoid;
             }
             .judge-table {
                 page-break-inside: avoid;
@@ -470,12 +507,36 @@ const generateJudgePdf = async (req, res) => {
             margin: 0.5in;
             size: A4;
         }
+
+        /* Force consistent table rendering across environments */
+        table {
+            border-spacing: 0;
+            border-collapse: collapse;
+        }
+
+        /* Ensure consistent image rendering */
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div class="header-container">
-        <img class="logo-left" src="${sitLogoBase64}" alt="SIT Logo">
-        <div class="title-text">HALCYON 2025</div>
+        <table class="header-table">
+            <tr>
+                <td class="logo-cell">
+                    <img class="logo-left" src="${sitLogoBase64}" alt="SIT Logo">
+                </td>
+                <td class="title-cell">
+                    <div class="title-text">HALCYON 2025</div>
+                </td>
+                <td class="spacer-cell">
+                    <!-- Empty spacer for balance -->
+                </td>
+            </tr>
+        </table>
     </div>
 
     <div class="subtitle">Judging parameters</div>
@@ -501,12 +562,26 @@ const generateJudgePdf = async (req, res) => {
         </thead>
         <tbody>
             ${registrations.map((reg, index) => {
+              // Determine if this is a spot registration
+              const isSpotRegistration = reg.spotRegistration !== null;
+
+              // Get the correct team leader name based on registration type
+              const teamLeaderName = isSpotRegistration && reg.teamLeaderDetails?.name
+                ? reg.teamLeaderDetails.name  // For spot registrations, use the stored name
+                : reg.teamLeader?.name || 'Unknown';  // For regular registrations, use the user's name
+
+              // Debug logging for name resolution
+              console.log(`Registration ${index + 1}:`, {
+                isSpotRegistration,
+                teamLeaderDetailsName: reg.teamLeaderDetails?.name,
+                teamLeaderName: reg.teamLeader?.name,
+                resolvedName: teamLeaderName,
+                teamName: reg.teamName
+              });
+
               if (reg.teamMembers && reg.teamMembers.length > 0) {
                 // For team events: Show "Team Name - Team Leader Name"
                 const teamName = reg.teamName || 'Unnamed Team';
-                const teamLeaderName = reg.isSpotRegistration
-                  ? (reg.displayTeamLeader?.name || 'Unknown')
-                  : (reg.teamLeader?.name || 'Unknown');
                 const displayName = `${teamName} - ${teamLeaderName}`;
 
                 return `
@@ -523,14 +598,10 @@ const generateJudgePdf = async (req, res) => {
                   </tr>`;
               } else {
                 // For individual events: Show participant name only
-                const participantName = reg.isSpotRegistration
-                  ? (reg.displayTeamLeader?.name || 'Unknown')
-                  : (reg.teamLeader?.name || 'Unknown');
-
                 return `
                   <tr>
                     <td class="col-sl-no">${index + 1}</td>
-                    <td class="col-name">${participantName}</td>
+                    <td class="col-name">${teamLeaderName}</td>
                     <td class="col-college">&nbsp;</td>
                     <td class="col-param">&nbsp;</td>
                     <td class="col-param">&nbsp;</td>
@@ -563,22 +634,31 @@ const generateJudgePdf = async (req, res) => {
       quality: "100",
       height: "11.7in",
       width: "8.3in",
-      // Additional options for production environment compatibility
-      timeout: 30000,
-      phantomPath: undefined, // Let html-pdf find PhantomJS automatically
+      // Production environment compatibility options
+      timeout: 60000, // Increased timeout for production
+      phantomPath: undefined,
       phantomArgs: [
         '--load-images=yes',
         '--local-to-remote-url-access=yes',
         '--web-security=no',
         '--ignore-ssl-errors=yes',
-        '--ssl-protocol=any'
+        '--ssl-protocol=any',
+        '--disk-cache=no',
+        '--max-disk-cache-size=0'
       ],
-      // Rendering options for consistent output
-      renderDelay: 1000,
+      // Rendering options for consistent output across environments
+      renderDelay: 2000, // Increased delay for production
       zoomFactor: 1.0,
-      // Font rendering options
       dpi: 96,
-      script: undefined
+      script: undefined,
+      // Additional options for production stability
+      base: undefined,
+      httpHeaders: {},
+      // Force specific viewport for consistency
+      viewportSize: {
+        width: 794,  // A4 width in pixels at 96 DPI
+        height: 1123 // A4 height in pixels at 96 DPI
+      }
     };
 
     pdf.create(judgeHtml, options).toBuffer((err, buffer) => {
