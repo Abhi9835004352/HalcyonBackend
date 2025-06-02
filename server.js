@@ -22,7 +22,15 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Add request logging
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.get('Origin') || 'No Origin'}`);
+  const origin = req.get('Origin') || 'No Origin';
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${origin}`);
+
+  // Special logging for auth requests
+  if (req.path.includes('/auth/')) {
+    console.log(`🔐 Auth request from origin: ${origin}`);
+    console.log(`🔐 User-Agent: ${req.get('User-Agent') || 'No User-Agent'}`);
+  }
+
   next();
 });
 
@@ -64,6 +72,14 @@ const corsOptions = {
       'https://halcyon.vercel.app',
       'https://halcyon-frontend.vercel.app',
       'https://halcyonfrontend.vercel.app',
+
+      // Add more common deployment patterns
+      'https://halcyon-1.netlify.app',
+      'https://halcyon1.netlify.app',
+      'https://halcyonevent.netlify.app',
+      'https://halcyon-event.netlify.app',
+      'https://halcyonapp.netlify.app',
+      'https://halcyon-app.netlify.app',
 
       // Add any custom domain if you have one
       // 'https://yourdomain.com',
