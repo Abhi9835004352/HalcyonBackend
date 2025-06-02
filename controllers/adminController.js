@@ -339,7 +339,7 @@ const generateJudgePdf = async (req, res) => {
        </tr>`
     );
 
-    // Create a complete HTML structure for judge PDF instead of modifying template
+    // Create a complete HTML structure for judge PDF with proper alignment
     const judgeHtml = `
 <!DOCTYPE html>
 <html>
@@ -353,36 +353,86 @@ const generateJudgePdf = async (req, res) => {
             padding: 20px;
             color: #000;
             line-height: 1.2;
+            font-size: 12pt;
         }
-        .header-section {
+        .header-container {
+            width: 100%;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .header-layout {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+        .logo-cell {
+            display: table-cell;
+            width: 120px;
+            vertical-align: middle;
+            text-align: left;
+        }
+        .title-cell {
+            display: table-cell;
+            vertical-align: middle;
             text-align: center;
-            margin-bottom: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            padding: 0 20px;
         }
         .logo-left {
             width: 110px;
             height: 110px;
-            margin-right: 20px;
+            display: block;
         }
         .title-text {
-            font-size: 52pt;
+            font-size: 48pt;
             font-weight: bold;
             font-family: 'Times New Roman', serif;
-            margin: 0 20px;
+            margin: 0;
             line-height: 1;
+            text-align: center;
         }
         .subtitle {
             text-align: center;
-            margin: 20px 0;
+            margin: 20px 0 10px 0;
             font-size: 18pt;
             text-decoration: underline;
+            font-weight: bold;
         }
         .event-label {
             text-align: left;
-            margin: 20px 0;
+            margin: 10px 0 20px 0;
             font-size: 16pt;
+            font-weight: normal;
+        }
+        .judge-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            table-layout: fixed;
+        }
+        .judge-table th,
+        .judge-table td {
+            border: 1pt solid black;
+            padding: 8px 4px;
+            text-align: center;
+            vertical-align: middle;
+            font-size: 10pt;
+        }
+        .judge-table th {
+            font-weight: bold;
+            font-size: 12pt;
+            background-color: #f5f5f5;
+        }
+        .col-sl-no { width: 60px; }
+        .col-name { width: 180px; }
+        .col-college { width: 100px; }
+        .col-param { width: 90px; }
+        .col-total { width: 70px; }
+
+        @media print {
+            body { margin: 0; padding: 15px; }
+            .header-container { page-break-inside: avoid; }
+            .judge-table { page-break-inside: avoid; }
+        }
             font-weight: bold;
         }
         .judge-table {
