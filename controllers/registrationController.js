@@ -33,8 +33,12 @@ const registerForEvent = async (req, res) => {
         const event = await Event.findById(eventId);
         if (!event) return res.status(404).json({ error: "Event not found" });
 
+        // Check if this is a spot registration (created by a team member)
+        const isSpotRegistration = req.user.role === 'team';
+
         // Check if registration is open for this event
-        if (!event.registrationOpen) {
+        // Allow spot registrations even when regular registrations are closed
+        if (!event.registrationOpen && !isSpotRegistration) {
             return res.status(403).json({
                 error: "Registration for this event is currently closed",
                 registrationClosed: true
@@ -97,9 +101,6 @@ const registerForEvent = async (req, res) => {
 
         // PAYMENT CHECK BYPASSED - Accept registration regardless of payment status
         console.log('Payment check bypassed - accepting registration');
-
-        // Check if this is a spot registration (created by a team member)
-        const isSpotRegistration = req.user.role === 'team';
 
         // Prepare registration data
         const registrationData = {
