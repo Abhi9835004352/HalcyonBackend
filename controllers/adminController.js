@@ -123,6 +123,23 @@ const generateJudgePdf = async (req, res) => {
 
     console.log(`Found ${registrations.length} registrations for judge PDF`);
 
+    // Read and encode the logos as base64 FIRST (before using them in template)
+    const sitLogoPath = path.join(__dirname, '../resources/images/sit_logo-removebg-preview.png');
+    const halcyonLogoPath = path.join(__dirname, '../resources/images/final LOGO.png');
+
+    let sitLogoBase64 = '';
+    let halcyonLogoBase64 = '';
+
+    try {
+      const sitLogoBuffer = fs.readFileSync(sitLogoPath);
+      sitLogoBase64 = `data:image/png;base64,${sitLogoBuffer.toString('base64')}`;
+
+      const halcyonLogoBuffer = fs.readFileSync(halcyonLogoPath);
+      halcyonLogoBase64 = `data:image/png;base64,${halcyonLogoBuffer.toString('base64')}`;
+    } catch (err) {
+      console.error('Error reading logo files:', err);
+    }
+
     // Read the judging HTML template
     const judgingTemplatePath = path.join(__dirname, '../templates/juding.html');
     let html = fs.readFileSync(judgingTemplatePath, 'utf8');
@@ -155,23 +172,6 @@ const generateJudgePdf = async (req, res) => {
       `<p class="MsoNormal" style="margin:5pt 0; text-align:center;"><strong><u><span style='font-size:20.0pt; line-height:107%;font-family:"Times New Roman",serif;'>Judging parameters</span></u></strong></p>
        <p class="MsoNormal" style="margin:10pt 0 15pt 0;"><span style='font-size:16.0pt;line-height:107%;font-family:"Times New Roman",serif;'>Event: ${event.name}</span></p>`
     );
-
-    // Read and encode the logos as base64
-    const sitLogoPath = path.join(__dirname, '../resources/images/sit_logo-removebg-preview.png');
-    const halcyonLogoPath = path.join(__dirname, '../resources/images/final LOGO.png');
-
-    let sitLogoBase64 = '';
-    let halcyonLogoBase64 = '';
-
-    try {
-      const sitLogoBuffer = fs.readFileSync(sitLogoPath);
-      sitLogoBase64 = `data:image/png;base64,${sitLogoBuffer.toString('base64')}`;
-
-      const halcyonLogoBuffer = fs.readFileSync(halcyonLogoPath);
-      halcyonLogoBase64 = `data:image/png;base64,${halcyonLogoBuffer.toString('base64')}`;
-    } catch (err) {
-      console.error('Error reading logo files:', err);
-    }
 
     // Replace the existing base64 image with the SIT logo (left side only)
     const existingImageRegex = /src="data:image\/[^"]+"/g;
@@ -339,74 +339,164 @@ const generateJudgePdf = async (req, res) => {
        </tr>`
     );
 
-    // Generate table rows for participants
-    let tableRows = '';
-    let serialNumber = 1;
+    // Create a complete HTML structure for judge PDF instead of modifying template
+    const judgeHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Judge Sheet - ${event.name}</title>
+    <style>
+        body {
+            font-family: 'Times New Roman', serif;
+            margin: 0;
+            padding: 20px;
+            color: #000;
+            line-height: 1.2;
+        }
+        .header-section {
+            text-align: center;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .logo-left {
+            width: 110px;
+            height: 110px;
+            margin-right: 20px;
+        }
+        .title-text {
+            font-size: 52pt;
+            font-weight: bold;
+            font-family: 'Times New Roman', serif;
+            margin: 0 20px;
+            line-height: 1;
+        }
+        .subtitle {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 18pt;
+            text-decoration: underline;
+        }
+        .event-label {
+            text-align: left;
+            margin: 20px 0;
+            font-size: 16pt;
+            font-weight: bold;
+        }
+        .judge-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 12pt;
+        }
+        .judge-table th,
+        .judge-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .judge-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        .judge-table .sl-no {
+            width: 60px;
+        }
+        .judge-table .name {
+            width: 180px;
+            text-align: left;
+        }
+        .judge-table .college-code {
+            width: 100px;
+        }
+        .judge-table .param {
+            width: 90px;
+        }
+        .judge-table .total {
+            width: 70px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-section">
+        <img class="logo-left" src="${sitLogoBase64}" alt="SIT Logo">
+        <span class="title-text">HALCYON 2025</span>
+    </div>
 
-    registrations.forEach((reg) => {
-      if (reg.teamMembers && reg.teamMembers.length > 0) {
-        // For team events: Show "Team Name - Team Leader Name"
-        const teamName = reg.teamName || 'Unnamed Team';
-        const teamLeaderName = reg.isSpotRegistration
-          ? (reg.displayTeamLeader?.name || 'Unknown')
-          : (reg.teamLeader?.name || 'Unknown');
+    <div class="subtitle">Judging parameters</div>
 
-        const displayName = `${teamName} - ${teamLeaderName}`;
+    <div class="event-label">Event: <strong>${event.name}</strong></div>
 
-        tableRows += `
-          <tr style="height: 25pt;">
-            <td style="width: 60px; border: 1pt solid black; padding: 5pt; text-align: center;">
-              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">${serialNumber}</p>
-            </td>
-            <td style="width: 200px; border: 1pt solid black; padding: 5pt;">
-              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">${displayName}</p>
-            </td>
-            <td style="width: 100px; border: 1pt solid black; padding: 5pt;">
-              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
-            </td>
-            <td style="border: 1pt solid black; padding: 5pt;">
-              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
-            </td>
-            <td style="width: 80px; border: 1pt solid black; padding: 5pt;">
-              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
-            </td>
-          </tr>`;
-      } else {
-        // For individual events: Show participant name only
-        const participantName = reg.isSpotRegistration
-          ? (reg.displayTeamLeader?.name || 'Unknown')
-          : (reg.teamLeader?.name || 'Unknown');
+    <table class="judge-table">
+        <thead>
+            <tr>
+                <th rowspan="2" class="sl-no">Sl. No.</th>
+                <th rowspan="2" class="name">Name</th>
+                <th rowspan="2" class="college-code">College code</th>
+                <th colspan="5">Judging Parameters</th>
+                <th rowspan="2" class="total">Total</th>
+            </tr>
+            <tr>
+                <th class="param">&nbsp;</th>
+                <th class="param">&nbsp;</th>
+                <th class="param">&nbsp;</th>
+                <th class="param">&nbsp;</th>
+                <th class="param">&nbsp;</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${registrations.map((reg, index) => {
+              if (reg.teamMembers && reg.teamMembers.length > 0) {
+                // For team events: Show "Team Name - Team Leader Name"
+                const teamName = reg.teamName || 'Unnamed Team';
+                const teamLeaderName = reg.isSpotRegistration
+                  ? (reg.displayTeamLeader?.name || 'Unknown')
+                  : (reg.teamLeader?.name || 'Unknown');
+                const displayName = `${teamName} - ${teamLeaderName}`;
 
-        tableRows += `
-          <tr style="height: 25pt;">
-            <td style="width: 60px; border: 1pt solid black; padding: 5pt; text-align: center;">
-              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">${serialNumber}</p>
-            </td>
-            <td style="width: 200px; border: 1pt solid black; padding: 5pt;">
-              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">${participantName}</p>
-            </td>
-            <td style="width: 100px; border: 1pt solid black; padding: 5pt;">
-              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
-            </td>
-            <td style="border: 1pt solid black; padding: 5pt;">
-              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
-            </td>
-            <td style="width: 80px; border: 1pt solid black; padding: 5pt;">
-              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
-            </td>
-          </tr>`;
-      }
-      serialNumber++;
-    });
+                return `
+                  <tr>
+                    <td class="sl-no">${index + 1}</td>
+                    <td class="name">${displayName}</td>
+                    <td class="college-code">&nbsp;</td>
+                    <td class="param">&nbsp;</td>
+                    <td class="param">&nbsp;</td>
+                    <td class="param">&nbsp;</td>
+                    <td class="param">&nbsp;</td>
+                    <td class="param">&nbsp;</td>
+                    <td class="total">&nbsp;</td>
+                  </tr>`;
+              } else {
+                // For individual events: Show participant name only
+                const participantName = reg.isSpotRegistration
+                  ? (reg.displayTeamLeader?.name || 'Unknown')
+                  : (reg.teamLeader?.name || 'Unknown');
 
-    // Find the end of the existing table rows and insert new ones
-    const tableEndIndex = html.lastIndexOf('</tr>');
-    const tableBodyEndIndex = html.indexOf('</tbody>', tableEndIndex);
+                return `
+                  <tr>
+                    <td class="sl-no">${index + 1}</td>
+                    <td class="name">${participantName}</td>
+                    <td class="college-code">&nbsp;</td>
+                    <td class="param">&nbsp;</td>
+                    <td class="param">&nbsp;</td>
+                    <td class="param">&nbsp;</td>
+                    <td class="param">&nbsp;</td>
+                    <td class="param">&nbsp;</td>
+                    <td class="total">&nbsp;</td>
+                  </tr>`;
+              }
+            }).join('')}
+        </tbody>
+    </table>
+</body>
+</html>`;
 
-    // Insert the new rows before the closing tbody tag
-    html = html.substring(0, tableBodyEndIndex) + tableRows + html.substring(tableBodyEndIndex);
+    console.log(`Judge PDF: Generated complete HTML with ${registrations.length} participants, serial numbers 1-${registrations.length}`);
 
-    console.log('Judge PDF: Template processing complete, generating PDF...');
+    console.log('Judge PDF: Using custom HTML template, generating PDF...');
 
     const options = {
       format: "A4",
@@ -423,7 +513,7 @@ const generateJudgePdf = async (req, res) => {
       width: "8.3in"
     };
 
-    pdf.create(html, options).toBuffer((err, buffer) => {
+    pdf.create(judgeHtml, options).toBuffer((err, buffer) => {
       if (err) {
         console.error(err);
         return res.status(500).json({ error: "Error generating judge PDF" });
