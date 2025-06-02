@@ -6,6 +6,7 @@ const {
     getAllUsers,
     getAllRegistrations,
     generatePdf,
+    generateJudgePdf,
     deleteEvent,
     editEvent,
     exportRegistrationsToExcel,
@@ -19,6 +20,7 @@ const {
 router.get('/users', auth, allowedRoles('admin'), getAllUsers);
 router.get('/registrations', auth, allowedRoles('admin'), getAllRegistrations);
 router.get('/pdf/:eventID', auth, allowedRoles('admin'), generatePdf);
+router.get('/judge-pdf/:eventID', auth, allowedRoles('admin'), generateJudgePdf);
 router.get('/excel', auth, allowedRoles('admin'), exportRegistrationsToExcel);
 router.get('/excel/:eventId', auth, allowedRoles('admin'), exportSingleEventToExcel);
 router.delete('/event/:id', auth, allowedRoles('admin'), deleteEvent);

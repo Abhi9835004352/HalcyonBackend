@@ -9,7 +9,6 @@ const mongoose = require('mongoose');
 const { sendRegistrationEmail } = require('../utils/mailer');
 const imagePath = path.join(__dirname, '../resources/image.png');
 let imageBase64 = '';
-const {sendRegistrationEmail} = require('../utils/mailer.js');
 
 // Define EVENT_CATEGORIES constant for use in Excel exports
 const EVENT_CATEGORIES = [
@@ -107,8 +106,9 @@ const assignTeamMember = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-const generatePdf = async (req, res) => {
+const generateJudgePdf = async (req, res) => {
   try {
+    console.log('Judge PDF generation started for event');
     const { eventID } = req.params;
     const event = await Event.findById(eventID);
     if (!event) return res.status(404).json({ error: "Event not found" });
@@ -116,182 +116,633 @@ const generatePdf = async (req, res) => {
     // Get registrations with participant details
     const registrations = await Registration.find({ event: eventID })
       .populate('teamLeader', 'name email mobile')
-      .populate('event', 'name date venue category day fees');
+      .populate('teamMembers', 'name email mobile usn')
+      .populate('teamLeaderDetails', 'name usn collegeName')
+      .populate('event', 'name date venue category day fees')
+      .lean();
 
-    // Read and encode the image
+    console.log(`Found ${registrations.length} registrations for judge PDF`);
+
+    // Read the judging HTML template
+    const judgingTemplatePath = path.join(__dirname, '../templates/juding.html');
+    let html = fs.readFileSync(judgingTemplatePath, 'utf8');
+
+    console.log('Judge PDF: Starting template processing...');
+
+    // Replace the event name in the template
+    html = html.replace('Event: <strong>&nbsp;</strong>', `Event: ${event.name}`);
+    html = html.replace('Event: <strong></strong>', `Event: ${event.name}`);
+
+    // Fix alignment issues by adjusting margins and positioning to match the desired layout
+    html = html.replace('margin-left:-41.15pt;', 'margin-left:0pt;');
+    html = html.replace('margin-left:-49.45pt;', 'margin-left:0pt;');
+    html = html.replace('text-indent:135.75pt;', 'text-indent:0pt; text-align:center;');
+
+    // Update the main title structure to match the desired format
+    // Replace the existing logo and title line to match the image layout
+    html = html.replace(
+      /<p class="MsoNormal" style="margin-top:0in;margin-right:0in;margin-bottom:0in; margin-left:-41\.15pt;"><img[^>]*><span[^>]*>&nbsp;<\/span> <strong><span style='font-size:52\.0pt;line-height:107%;font-family:"Times New Roman",serif;'>HALCYON<\/span><\/strong> <strong><span style='font-size:57\.0pt;line-height:107%;font-family:"Times New Roman",serif;'>2025<\/span><\/strong><\/p>/g,
+      `<div style="display: flex; align-items: center; margin: 10pt 0;">
+         <img width="101" height="99" src="${sitLogoBase64}" alt="SIT Logo" style="margin-right: 20pt;">
+         <h1 style="font-size: 52pt; font-family: 'Times New Roman', serif; font-weight: bold; margin: 0; text-align: center; flex-grow: 1;">HALCYON 2025</h1>
+       </div>`
+    );
+
+    // Update the header structure to match the desired format
+    // Replace the existing header paragraph with proper structure
+    html = html.replace(
+      /<p class="MsoNormal" style="margin-top:0in;margin-right:64\.65pt;margin-bottom: 0in;margin-left:0in;text-indent:135\.75pt;"><strong><u><span style='font-size:20\.0pt; line-height:107%;font-family:"Times New Roman",serif;'>Judging parameters<\/span><\/u><\/strong> <span style='font-size:20\.0pt;line-height:107%;font-family:"Times New Roman",serif;'>Event: <strong>&nbsp;<\/strong><\/span><\/p>/g,
+      `<p class="MsoNormal" style="margin:5pt 0; text-align:center;"><strong><u><span style='font-size:20.0pt; line-height:107%;font-family:"Times New Roman",serif;'>Judging parameters</span></u></strong></p>
+       <p class="MsoNormal" style="margin:10pt 0 15pt 0;"><span style='font-size:16.0pt;line-height:107%;font-family:"Times New Roman",serif;'>Event: ${event.name}</span></p>`
+    );
+
+    // Read and encode the logos as base64
+    const sitLogoPath = path.join(__dirname, '../resources/images/sit_logo-removebg-preview.png');
+    const halcyonLogoPath = path.join(__dirname, '../resources/images/final LOGO.png');
+
+    let sitLogoBase64 = '';
+    let halcyonLogoBase64 = '';
+
     try {
-      const imageBuffer = fs.readFileSync(imagePath);
-      imageBase64 = `data:image/png;base64,${imageBuffer.toString('base64')}`;
-    } catch (imgErr) {
-      console.error('Error reading image:', imgErr);
-      imageBase64 = ''; // Set empty if image can't be read
+      const sitLogoBuffer = fs.readFileSync(sitLogoPath);
+      sitLogoBase64 = `data:image/png;base64,${sitLogoBuffer.toString('base64')}`;
+
+      const halcyonLogoBuffer = fs.readFileSync(halcyonLogoPath);
+      halcyonLogoBase64 = `data:image/png;base64,${halcyonLogoBuffer.toString('base64')}`;
+    } catch (err) {
+      console.error('Error reading logo files:', err);
+    }
+
+    // Replace the existing base64 image with the SIT logo (left side only)
+    const existingImageRegex = /src="data:image\/[^"]+"/g;
+    html = html.replace(existingImageRegex, `src="${sitLogoBase64}"`);
+    console.log('Judge PDF: Replaced logo with SIT logo');
+
+    // Update the header layout to match the desired format exactly
+    // Replace the entire header section with the correct structure
+    html = html.replace(
+      /<p class="MsoNormal" style="[^"]*"><img[^>]*><span[^>]*>&nbsp;<\/span> <strong><span[^>]*>HALCYON<\/span><\/strong> <strong><span[^>]*>2025<\/span><\/strong><\/p>/g,
+      `<div style="display: table; width: 100%; margin: 10pt 0;">
+         <div style="display: table-cell; vertical-align: middle; width: 120px;">
+           <img width="101" height="99" src="${sitLogoBase64}" alt="SIT Logo">
+         </div>
+         <div style="display: table-cell; vertical-align: middle; text-align: center;">
+           <h1 style="font-size: 48pt; font-family: 'Times New Roman', serif; font-weight: bold; margin: 0;">HALCYON 2025</h1>
+         </div>
+       </div>`
+    );
+
+    // Remove all watermarks completely - multiple patterns
+    const beforeWatermarkRemoval = html.length;
+    html = html.replace(/<p style="bottom: 10px; right: 10px; position: absolute;">.*?<\/p>/gi, '');
+    html = html.replace(/<p[^>]*position:\s*absolute[^>]*>.*?<\/p>/gi, '');
+    html = html.replace(/<a[^>]*wordtohtml[^>]*>.*?<\/a>/gi, '');
+    html = html.replace(/Converted to HTML with WordToHTML\.net/gi, '');
+    html = html.replace(/<[^>]*watermark[^>]*>.*?<\/[^>]*>/gi, '');
+    html = html.replace(/opacity:\s*0\.[0-9]+/gi, 'opacity: 1');
+    html = html.replace(/background-image:[^;]+;/gi, '');
+    const afterWatermarkRemoval = html.length;
+    console.log(`Judge PDF: Watermark removal - before: ${beforeWatermarkRemoval}, after: ${afterWatermarkRemoval}`);
+
+    // Remove any additional logos that might be added (ensure only left logo remains)
+    // Count images and remove any after the first one
+    const imageMatches = html.match(/<img[^>]*>/g);
+    console.log(`Judge PDF: Found ${imageMatches ? imageMatches.length : 0} images in template`);
+    if (imageMatches && imageMatches.length > 1) {
+      // Keep only the first image (SIT logo), remove others
+      let imageCount = 0;
+      html = html.replace(/<img[^>]*>/g, (match) => {
+        imageCount++;
+        return imageCount === 1 ? match : '';
+      });
+      console.log('Judge PDF: Removed additional logos, keeping only SIT logo');
+    }
+
+    // Fix page break issues - reduce excessive spacing that causes table to move to next page
+    html = html.replace(/margin-bottom:48\.15pt;/g, 'margin-bottom:6pt;');
+    html = html.replace(/margin-bottom:9\.9pt;/g, 'margin-bottom:3pt;');
+    html = html.replace(/margin-bottom:0in;/g, 'margin-bottom:0pt;');
+
+    // Remove excessive top margins and spacing
+    html = html.replace(/margin-top:0in;margin-right:0in;margin-bottom:0in; margin-left:-41\.15pt;/g, 'margin:0; padding:5pt;');
+    html = html.replace(/margin-top:0in;margin-right:64\.65pt;margin-bottom: 0in;margin-left:0in;text-indent:135\.75pt;/g, 'margin:5pt 0; text-align:center;');
+
+    // Fix table positioning to start immediately after header
+    html = html.replace(/margin-left:-49\.45pt;/g, 'margin-left:0pt; margin-top:5pt;');
+
+    // Add CSS to prevent page breaks within table rows and maintain table structure
+    const pageBreakCSS = `
+      <style>
+        body {
+          margin: 0;
+          padding: 10px;
+          font-size: 12pt;
+        }
+        .WordSection1 {
+          margin: 0;
+          padding: 10px;
+        }
+        p {
+          margin: 2pt 0;
+          padding: 0;
+        }
+        @media print {
+          body {
+            margin: 0;
+            padding: 0;
+          }
+          .WordSection1 {
+            margin: 0;
+            padding: 20px;
+          }
+          table {
+            page-break-inside: avoid;
+            table-layout: fixed;
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10pt;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          td {
+            page-break-inside: avoid;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+          }
+          .TableGrid {
+            page-break-inside: avoid;
+            table-layout: fixed;
+            width: 100%;
+            margin-top: 10pt;
+          }
+        }
+        table {
+          page-break-inside: avoid;
+          table-layout: fixed;
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 10pt;
+        }
+        tr {
+          page-break-inside: avoid;
+          page-break-after: auto;
+        }
+        td {
+          page-break-inside: avoid;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+        }
+        .TableGrid {
+          page-break-inside: avoid;
+          table-layout: fixed;
+          width: 100%;
+          margin-top: 10pt;
+        }
+      </style>
+    `;
+
+    // Insert CSS before the closing head tag or at the beginning of the document
+    if (html.includes('</head>')) {
+      html = html.replace('</head>', pageBreakCSS + '</head>');
+    } else {
+      html = pageBreakCSS + html;
+    }
+
+    // Update table attributes to prevent page breaks and match the header format
+    html = html.replace(
+      'class="TableGrid" border="0" cellspacing="0" cellpadding="0"',
+      'class="TableGrid" border="1" cellspacing="0" cellpadding="0" style="page-break-inside: avoid; table-layout: fixed; width: 100%; border-collapse: collapse; border: 1pt solid black;"'
+    );
+
+    // Update table headers to match the exact format from the image
+    // Replace the existing table header structure
+    html = html.replace(
+      /<tr[^>]*>\s*<td[^>]*>.*?Sl\. No\..*?<\/td>\s*<td[^>]*>.*?Name.*?<\/td>.*?<\/tr>/gs,
+      `<tr style="height: 30pt;">
+         <td style="width: 60px; border: 1pt solid black; padding: 5pt; text-align: center; font-weight: bold; background-color: #f0f0f0;">
+           <p style="margin: 0; font-size: 12pt; font-family: 'Times New Roman', serif;">Sl. No.</p>
+         </td>
+         <td style="width: 200px; border: 1pt solid black; padding: 5pt; text-align: center; font-weight: bold; background-color: #f0f0f0;">
+           <p style="margin: 0; font-size: 12pt; font-family: 'Times New Roman', serif;">Name</p>
+         </td>
+         <td style="width: 100px; border: 1pt solid black; padding: 5pt; text-align: center; font-weight: bold; background-color: #f0f0f0;">
+           <p style="margin: 0; font-size: 12pt; font-family: 'Times New Roman', serif;">College code</p>
+         </td>
+         <td style="border: 1pt solid black; padding: 5pt; text-align: center; font-weight: bold; background-color: #f0f0f0;">
+           <p style="margin: 0; font-size: 12pt; font-family: 'Times New Roman', serif;">Judging Parameters</p>
+         </td>
+         <td style="width: 80px; border: 1pt solid black; padding: 5pt; text-align: center; font-weight: bold; background-color: #f0f0f0;">
+           <p style="margin: 0; font-size: 12pt; font-family: 'Times New Roman', serif;">Total</p>
+         </td>
+       </tr>`
+    );
+
+    // Generate table rows for participants
+    let tableRows = '';
+    let serialNumber = 1;
+
+    registrations.forEach((reg) => {
+      if (reg.teamMembers && reg.teamMembers.length > 0) {
+        // For team events: Show "Team Name - Team Leader Name"
+        const teamName = reg.teamName || 'Unnamed Team';
+        const teamLeaderName = reg.isSpotRegistration
+          ? (reg.displayTeamLeader?.name || 'Unknown')
+          : (reg.teamLeader?.name || 'Unknown');
+
+        const displayName = `${teamName} - ${teamLeaderName}`;
+
+        tableRows += `
+          <tr style="height: 25pt;">
+            <td style="width: 60px; border: 1pt solid black; padding: 5pt; text-align: center;">
+              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">${serialNumber}</p>
+            </td>
+            <td style="width: 200px; border: 1pt solid black; padding: 5pt;">
+              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">${displayName}</p>
+            </td>
+            <td style="width: 100px; border: 1pt solid black; padding: 5pt;">
+              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
+            </td>
+            <td style="border: 1pt solid black; padding: 5pt;">
+              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
+            </td>
+            <td style="width: 80px; border: 1pt solid black; padding: 5pt;">
+              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
+            </td>
+          </tr>`;
+      } else {
+        // For individual events: Show participant name only
+        const participantName = reg.isSpotRegistration
+          ? (reg.displayTeamLeader?.name || 'Unknown')
+          : (reg.teamLeader?.name || 'Unknown');
+
+        tableRows += `
+          <tr style="height: 25pt;">
+            <td style="width: 60px; border: 1pt solid black; padding: 5pt; text-align: center;">
+              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">${serialNumber}</p>
+            </td>
+            <td style="width: 200px; border: 1pt solid black; padding: 5pt;">
+              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">${participantName}</p>
+            </td>
+            <td style="width: 100px; border: 1pt solid black; padding: 5pt;">
+              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
+            </td>
+            <td style="border: 1pt solid black; padding: 5pt;">
+              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
+            </td>
+            <td style="width: 80px; border: 1pt solid black; padding: 5pt;">
+              <p style="margin: 0; font-size: 11pt; font-family: 'Times New Roman', serif;">&nbsp;</p>
+            </td>
+          </tr>`;
+      }
+      serialNumber++;
+    });
+
+    // Find the end of the existing table rows and insert new ones
+    const tableEndIndex = html.lastIndexOf('</tr>');
+    const tableBodyEndIndex = html.indexOf('</tbody>', tableEndIndex);
+
+    // Insert the new rows before the closing tbody tag
+    html = html.substring(0, tableBodyEndIndex) + tableRows + html.substring(tableBodyEndIndex);
+
+    console.log('Judge PDF: Template processing complete, generating PDF...');
+
+    const options = {
+      format: "A4",
+      orientation: "portrait",
+      border: {
+        top: "0.5in",
+        right: "0.5in",
+        bottom: "0.5in",
+        left: "0.5in"
+      },
+      type: "pdf",
+      quality: "100",
+      height: "11.7in",
+      width: "8.3in"
+    };
+
+    pdf.create(html, options).toBuffer((err, buffer) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: "Error generating judge PDF" });
+      }
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=${event.name.replace(/\s+/g, '_')}_Judge_Sheet_${Date.now()}.pdf`);
+      res.send(buffer);
+    });
+  } catch (err) {
+    console.error('Error in generateJudgePdf:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const generatePdf = async (req, res) => {
+  try {
+    console.log('PDF generation started for event');
+    const { eventID } = req.params;
+    const event = await Event.findById(eventID);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    // Get registrations with participant details
+    const registrations = await Registration.find({ event: eventID })
+      .populate('teamLeader', 'name email mobile')
+      .populate('teamMembers', 'name email mobile usn')
+      .populate('teamLeaderDetails', 'name usn collegeName')
+      .populate('event', 'name date venue category day fees')
+      .lean();
+
+    // Convert logos to base64
+    const sitLogoPath = path.join(__dirname, '../resources/images/sit_logo-removebg-preview.png');
+    const finalLogoPath = path.join(__dirname, '../resources/images/final LOGO.png');
+
+    let sitLogoBase64 = '';
+    let finalLogoBase64 = '';
+
+    try {
+      const sitLogoBuffer = fs.readFileSync(sitLogoPath);
+      sitLogoBase64 = `data:image/png;base64,${sitLogoBuffer.toString('base64')}`;
+    } catch (error) {
+      console.log('SIT logo not found, proceeding without left logo');
+      sitLogoBase64 = '';
+    }
+
+    try {
+      const finalLogoBuffer = fs.readFileSync(finalLogoPath);
+      finalLogoBase64 = `data:image/png;base64,${finalLogoBuffer.toString('base64')}`;
+    } catch (error) {
+      console.log('Final logo not found, proceeding without right logo');
+      finalLogoBase64 = '';
     }
 
     if (!registrations) return res.status(404).json({ error: "No registrations found" });
 
     const html = `
+<!DOCTYPE html>
 <html>
-  <head>
-    <title>Registrations 2025</title>
+<head>
+    <meta charset="UTF-8">
+    <title>Halcyon 2025 Registration Report</title>
     <style>
-      body {
-        font-family: 'Arial', sans-serif;
-        margin: 40px;
-        color: #000;
-      }
+        body {
+            font-family: 'Times New Roman', serif;
+            margin: 0;
+            padding: 20px;
+            color: #000;
+            line-height: 1.2;
+        }
 
-      .header {
-        text-align: center;
-        position: relative;
-        padding: 20px 0;
-        margin-bottom: 20px;
-      }
+        .WordSection1 {
+            max-width: 800px;
+            margin: 0 auto;
+        }
 
-      .header-bg {
-        position: relative;
-        background-image: url('${imageBase64}');
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain;
-        padding: 30px 0;
-        min-height: 100px;
-      }
+        .MsoNormal {
+            margin: 0;
+            padding: 0;
+        }
 
-      h1, h2 {
-        text-align: center;
-        margin: 0;
-        padding: 4px;
-      }
+        .header-section {
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
-      h1 {
-        font-size: 28px;
-        font-weight: bold;
-        text-transform: uppercase;
-      }
+        .header-content {
+            display: inline-block;
+            vertical-align: top;
+        }
 
-      h2 {
-        font-size: 20px;
-        font-weight: normal;
-        margin-bottom: 10px;
-      }
+        .logo-left {
+            width: 93px;
+            height: 98px;
+            margin-right: 20px;
+            vertical-align: middle;
+        }
 
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 30px;
-      }
+        .logo-right {
+            width: 133px;
+            height: 109px;
+            margin-left: 20px;
+            vertical-align: middle;
+        }
 
-      th, td {
-        border: 1px solid #000;
-        padding: 8px 12px;
-        text-align: left;
-        vertical-align: top;
-      }
+        .title-text {
+            font-size: 46pt;
+            font-weight: bold;
+            font-family: 'Times New Roman', serif;
+            display: inline-block;
+            vertical-align: middle;
+            margin: 0 20px;
+            line-height: 1;
+        }
 
-      th {
-        background-color: #f0f0f0;
-        font-weight: bold;
-        text-align: center;
-      }
+        .event-info {
+            margin: 30px 0;
+            text-align: center;
+            font-size: 18pt;
+            font-weight: bold;
+        }
 
-      td:nth-child(1) {
-        text-align: center;
-      }
+        .registration-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 12pt;
+        }
 
-      tr:nth-child(even) {
-        background-color: #fafafa;
-      }
+        .registration-table th,
+        .registration-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
 
-      .no-data {
-        text-align: center;
-        padding: 20px;
-        font-style: italic;
-        color: #666;
-      }
+        .registration-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            text-align: center;
+        }
 
-      .team-members {
-        margin-top: 5px;
-        font-size: 12px;
-        color: #555;
-      }
+        .registration-table td:first-child {
+            text-align: center;
+            width: 60px;
+        }
 
-      .team-member {
-        margin: 2px 0;
-        padding: 2px 0;
-        border-bottom: 1px dotted #ccc;
-      }
+        .registration-table td:nth-child(2) {
+            text-align: center;
+            width: 100px;
+        }
 
-      .team-member:last-child {
-        border-bottom: none;
-      }
+        .registration-table td:nth-child(3) {
+            width: 200px;
+        }
 
-      .member-name {
-        font-weight: bold;
-      }
+        .registration-table td:nth-child(4) {
+            width: 150px;
+        }
 
-      .member-usn {
-        color: #666;
-        font-style: italic;
-      }
+        .registration-table td:nth-child(5) {
+            width: 120px;
+        }
+
+        .team-members-list {
+            margin-top: 5px;
+            font-size: 10pt;
+            color: #555;
+        }
+
+        .team-member-item {
+            margin: 2px 0;
+            padding: 1px 0;
+        }
+
+        .member-name {
+            font-weight: bold;
+        }
+
+        .member-usn {
+            color: #666;
+            font-style: italic;
+        }
+
+        .no-registrations {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+
+        .footer-info {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 10pt;
+            color: #666;
+        }
+
+        @media print {
+            body {
+                margin: 0;
+                padding: 15px;
+            }
+
+            .WordSection1 {
+                max-width: none;
+            }
+        }
     </style>
-  </head>
-  <body>
-    <div class="header">
-      <div class="header-bg">
-        <h1>HALCYON 2025</h1>
-      </div>
-      <h2>Registrations</h2>
-      <h2>Event: ${event.name}</h2>
-    </div>
-    <table>
-      <tr>
-        <th>Sl. No.</th>
-        <th>Team Name</th>
-        <th>Team Leader & Members</th>
-        <th>Contact No.</th>
-        <th>College</th>
-        <th>Transaction ID</th>
-      </tr>
-      ${registrations.length > 0 ?
-        registrations.map((registration, index) => {
-          // Generate team members list
-          let teamMembersHtml = '';
-          if (registration.teamMembers && registration.teamMembers.length > 0) {
-            teamMembersHtml = `
-              <div class="team-members">
-                <strong>Team Members:</strong>
-                ${registration.teamMembers.map(member => `
-                  <div class="team-member">
-                    <span class="member-name">${member.name || 'N/A'}</span>
-                    ${member.usn ? `<span class="member-usn"> (${member.usn})</span>` : ''}
-                  </div>
-                `).join('')}
-              </div>
-            `;
-          }
+</head>
+<body>
+    <div class="WordSection1">
+        <div class="header-section">
+            <img class="logo-left" src="${sitLogoBase64}" alt="SIT Logo">
+            <span class="title-text">HALCYON 2025</span>
+            <img class="logo-right" src="${finalLogoBase64}" alt="Halcyon Logo">
+        </div>
 
-          return `
-            <tr>
-              <td>${index + 1}</td>
-              <td>${registration.teamName || 'N/A'}</td>
-              <td>
-                <strong>Leader:</strong> ${
-                  registration.spotRegistration && registration.teamLeaderDetails?.name
-                    ? registration.teamLeaderDetails.name
-                    : registration.teamLeader?.name || 'N/A'
+        <div class="event-info">
+            ${event.name}
+        </div>
+
+        <table class="registration-table">
+            <thead>
+                <tr>
+                    <th>Sl. No.</th>
+                    <th>College Code</th>
+                    <th>Name</th>
+                    <th>USN</th>
+                    <th>Contact No.</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${registrations.length > 0 ?
+                  (() => {
+                    let teamIndex = 0;
+                    return registrations.map((registration) => {
+                      teamIndex++;
+                      const rows = [];
+
+                      // Get team leader details
+                      const leaderName = registration.spotRegistration && registration.teamLeaderDetails?.name
+                        ? registration.teamLeaderDetails.name
+                        : registration.teamLeader?.name || 'N/A';
+                      const leaderUSN = registration.teamLeaderDetails?.usn || 'N/A';
+                      const leaderMobile = registration.teamLeader?.mobile || 'N/A';
+
+                      // Check if this is a team event (has team members or team name)
+                      const isTeamEvent = (registration.teamMembers && registration.teamMembers.length > 0) || registration.teamName;
+
+                      if (isTeamEvent) {
+                        // Add team name row with team leader name
+                        rows.push(`
+                          <tr style="font-weight: bold; background-color: #f8f9fa;">
+                            <td>${teamIndex}</td>
+                            <td></td>
+                            <td>${registration.teamName || 'Team'} - ${leaderName} (Team Lead)</td>
+                            <td></td>
+                            <td></td>
+                          </tr>`);
+
+                        // Add team leader details
+                        rows.push(`
+                          <tr>
+                            <td></td>
+                            <td></td>
+                            <td>${leaderName}</td>
+                            <td>${leaderUSN}</td>
+                            <td>${leaderMobile}</td>
+                          </tr>`);
+
+                        // Add team members if any
+                        if (registration.teamMembers && registration.teamMembers.length > 0) {
+                          registration.teamMembers.forEach(member => {
+                            rows.push(`
+                              <tr>
+                                <td></td>
+                                <td></td>
+                                <td>${member.name || 'N/A'}</td>
+                                <td>${member.usn || 'N/A'}</td>
+                                <td>${member.mobile || 'N/A'}</td>
+                              </tr>`);
+                          });
+                        }
+
+                        // Add blank line after team
+                        rows.push(`
+                          <tr style="height: 20px;">
+                            <td colspan="5" style="border: none; background-color: transparent;"></td>
+                          </tr>`);
+                      } else {
+                        // Individual participant (not a team event)
+                        rows.push(`
+                          <tr>
+                            <td>${teamIndex}</td>
+                            <td></td>
+                            <td>${leaderName}</td>
+                            <td>${leaderUSN}</td>
+                            <td>${leaderMobile}</td>
+                          </tr>`);
+                      }
+
+                      return rows.join('');
+                    }).join('');
+                  })() :
+                  `<tr><td colspan="5" class="no-registrations">No registrations found for this event</td></tr>`
                 }
-                ${registration.teamLeaderDetails?.usn ? `<br><span class="member-usn">(${registration.teamLeaderDetails.usn})</span>` : ''}
-                ${teamMembersHtml}
-              </td>
-              <td>${registration.teamLeader?.mobile || 'N/A'}</td>
-              <td>${registration.teamLeaderDetails?.collegeName || 'N/A'}</td>
-              <td>${registration.transactionId || 'N/A'}</td>
-            </tr>`;
-        }).join('') :
-        `<tr><td colspan="6" class="no-data">No registrations found for this event</td></tr>`
-      }
-    </table>
-  </body>
+            </tbody>
+        </table>
+
+        <div class="footer-info">
+            <p>Generated on: ${new Date().toLocaleDateString()}</p>
+            <p>© Halcyon 2025 - All rights reserved</p>
+        </div>
+    </div>
+</body>
 </html>
 `;
 
@@ -313,7 +764,7 @@ const generatePdf = async (req, res) => {
         return res.status(500).json({ error: "Error generating PDF" });
       }
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename=registrations.pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=${event.name.replace(/\s+/g, '_')}_Registration_Report_${Date.now()}.pdf`);
       res.send(buffer);
     })
   } catch (err) {
@@ -1059,6 +1510,7 @@ module.exports = {
   getAllRegistrations,
   assignTeamMember,
   generatePdf,
+  generateJudgePdf,
   deleteEvent,
   editEvent,
   exportRegistrationsToExcel,
