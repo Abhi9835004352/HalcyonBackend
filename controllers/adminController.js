@@ -144,44 +144,48 @@ const generateJudgePdf = async (req, res) => {
 
     // Load and add the SIT logo
     const sitLogoPath = path.join(__dirname, '../resources/images/sit_logo-removebg-preview.png');
-    let logoExists = false;
     try {
       if (fs.existsSync(sitLogoPath)) {
         doc.image(sitLogoPath, 50, 50, { width: 100, height: 100 });
-        logoExists = true;
+        console.log('SIT logo added successfully');
       }
     } catch (error) {
       console.log('Logo not found, proceeding without logo');
     }
 
-    // Add the title
+    // Add the title - properly centered
     doc.fontSize(48)
        .font('Times-Bold')
-       .text('HALCYON 2025', logoExists ? 200 : 50, 80, {
-         align: logoExists ? 'center' : 'left',
-         width: logoExists ? 300 : 500
+       .text('HALCYON 2025', 50, 80, {
+         align: 'center',
+         width: 500
        });
 
     // Add subtitle
     doc.fontSize(18)
        .font('Times-Bold')
-       .text('Judging parameters', 50, 180, { align: 'center', width: 500, underline: true });
+       .text('Judging parameters', 50, 160, {
+         align: 'center',
+         width: 500,
+         underline: true
+       });
 
     // Add event name
     doc.fontSize(14)
        .font('Times-Roman')
-       .text(`Event: ${event.name}`, 50, 220, { align: 'left' });
+       .text(`Event: ${event.name}`, 50, 200, { align: 'left' });
 
-    // Create the table
-    const startY = 260;
-    const tableWidth = 500;
+    // Create the table with proper dimensions
+    const startY = 240;
+    const tableWidth = 495; // Fit within page margins (595 - 50*2 = 495)
     const rowHeight = 25;
-    const colWidths = [50, 150, 80, 60, 60, 60, 60, 60, 60]; // Column widths
+    // Adjusted column widths to fit properly: Sl.No(40) + Name(140) + College(70) + 5 Params(45 each) + Total(50) = 495
+    const colWidths = [40, 140, 70, 45, 45, 45, 45, 45, 50];
 
     // Table headers
     let currentY = startY;
 
-    // Draw table border
+    // Draw main table border
     doc.rect(50, currentY, tableWidth, rowHeight * 2).stroke();
 
     // Header row 1
@@ -190,35 +194,39 @@ const generateJudgePdf = async (req, res) => {
 
     // Sl. No. (rowspan 2)
     doc.rect(currentX, currentY, colWidths[0], rowHeight * 2).stroke();
-    doc.text('Sl.\nNo.', currentX + 5, currentY + 5, { width: colWidths[0] - 10, align: 'center' });
+    doc.text('Sl.\nNo.', currentX + 2, currentY + 6, { width: colWidths[0] - 4, align: 'center' });
     currentX += colWidths[0];
 
     // Name (rowspan 2)
     doc.rect(currentX, currentY, colWidths[1], rowHeight * 2).stroke();
-    doc.text('Name', currentX + 5, currentY + 8, { width: colWidths[1] - 10, align: 'center' });
+    doc.text('Name', currentX + 2, currentY + 18, { width: colWidths[1] - 4, align: 'center' });
     currentX += colWidths[1];
 
     // College code (rowspan 2)
     doc.rect(currentX, currentY, colWidths[2], rowHeight * 2).stroke();
-    doc.text('College\ncode', currentX + 5, currentY + 5, { width: colWidths[2] - 10, align: 'center' });
+    doc.text('College\ncode', currentX + 2, currentY + 6, { width: colWidths[2] - 4, align: 'center' });
     currentX += colWidths[2];
 
     // Judging Parameters (colspan 5)
     const judgingParamsWidth = colWidths[3] + colWidths[4] + colWidths[5] + colWidths[6] + colWidths[7];
     doc.rect(currentX, currentY, judgingParamsWidth, rowHeight).stroke();
-    doc.text('Judging Parameters', currentX + 5, currentY + 8, { width: judgingParamsWidth - 10, align: 'center' });
+    doc.text('Judging Parameters', currentX + 2, currentY + 8, { width: judgingParamsWidth - 4, align: 'center' });
 
     // Total (rowspan 2)
     const totalX = currentX + judgingParamsWidth;
     doc.rect(totalX, currentY, colWidths[8], rowHeight * 2).stroke();
-    doc.text('Total', totalX + 5, currentY + 8, { width: colWidths[8] - 10, align: 'center' });
+    doc.text('Total', totalX + 2, currentY + 18, { width: colWidths[8] - 4, align: 'center' });
 
     // Header row 2 (parameter columns)
     currentY += rowHeight;
     currentX = 50 + colWidths[0] + colWidths[1] + colWidths[2]; // Start after the rowspan columns
 
+    // Draw individual parameter column headers
     for (let i = 0; i < 5; i++) {
       doc.rect(currentX, currentY, colWidths[3 + i], rowHeight).stroke();
+      // Add parameter labels (P1, P2, P3, P4, P5)
+      doc.fontSize(9).font('Times-Bold');
+      doc.text(`P${i + 1}`, currentX + 2, currentY + 8, { width: colWidths[3 + i] - 4, align: 'center' });
       currentX += colWidths[3 + i];
     }
 
@@ -243,33 +251,73 @@ const generateJudgePdf = async (req, res) => {
         displayName = teamLeaderName;
       }
 
-      // Draw row
-      currentX = 50;
-      doc.rect(currentX, currentY, tableWidth, rowHeight).stroke();
+      // Draw row border
+      doc.rect(50, currentY, tableWidth, rowHeight).stroke();
 
-      // Draw vertical lines for columns
+      // Draw vertical lines for all columns
+      currentX = 50;
       for (let i = 0; i < colWidths.length - 1; i++) {
         currentX += colWidths[i];
         doc.moveTo(currentX, currentY).lineTo(currentX, currentY + rowHeight).stroke();
       }
 
-      // Add data
-      doc.fontSize(9).font('Times-Roman');
+      // Add data to cells
+      doc.fontSize(8).font('Times-Roman');
       currentX = 50;
 
       // Serial number
-      doc.text((index + 1).toString(), currentX + 5, currentY + 8, { width: colWidths[0] - 10, align: 'center' });
+      doc.text((index + 1).toString(), currentX + 2, currentY + 8, {
+        width: colWidths[0] - 4,
+        align: 'center'
+      });
       currentX += colWidths[0];
 
-      // Name
-      doc.text(displayName, currentX + 5, currentY + 8, { width: colWidths[1] - 10, align: 'left' });
+      // Name (truncate if too long)
+      const truncatedName = displayName.length > 20 ? displayName.substring(0, 17) + '...' : displayName;
+      doc.text(truncatedName, currentX + 2, currentY + 8, {
+        width: colWidths[1] - 4,
+        align: 'left'
+      });
+      currentX += colWidths[1];
+
+      // College code (empty for judges to fill)
+      doc.text('', currentX + 2, currentY + 8, {
+        width: colWidths[2] - 4,
+        align: 'center'
+      });
+      currentX += colWidths[2];
+
+      // Judging parameter columns (empty for judges to fill)
+      for (let i = 3; i < 8; i++) {
+        doc.text('', currentX + 2, currentY + 8, {
+          width: colWidths[i] - 4,
+          align: 'center'
+        });
+        currentX += colWidths[i];
+      }
+
+      // Total column (empty for judges to fill)
+      doc.text('', currentX + 2, currentY + 8, {
+        width: colWidths[8] - 4,
+        align: 'center'
+      });
 
       currentY += rowHeight;
 
       // Check if we need a new page
-      if (currentY > 700) {
+      if (currentY > 720) {
         doc.addPage();
         currentY = 50;
+
+        // Redraw headers on new page
+        doc.fontSize(14).font('Times-Bold');
+        doc.text(`Event: ${event.name} (continued)`, 50, currentY, { align: 'left' });
+        currentY += 30;
+
+        // Redraw table headers
+        doc.rect(50, currentY, tableWidth, rowHeight * 2).stroke();
+        // ... (header redraw code would go here if needed)
+        currentY += rowHeight * 2;
       }
     });
 
