@@ -386,48 +386,69 @@ const generatePdf = async (req, res) => {
       res.send(pdfBuffer);
     });
 
-    // Load and add the SIT logo (only left logo as per user preference)
+    // Load logos
     const sitLogoPath = path.join(__dirname, '../resources/images/sit_logo-removebg-preview.png');
+    const finalLogoPath = path.join(__dirname, '../resources/images/finallogo.png');
+
+    // Add logos and title in the same horizontal line
+    const headerY = 50;
+    const logoSize = 80; // Reduced logo size
+
     try {
+      // Left logo (SIT)
       if (fs.existsSync(sitLogoPath)) {
-        doc.image(sitLogoPath, 50, 50, { width: 100, height: 100 });
+        doc.image(sitLogoPath, 50, headerY, { width: logoSize, height: logoSize });
         console.log('SIT logo added successfully');
       }
     } catch (error) {
-      console.log('Logo not found, proceeding without logo');
+      console.log('SIT logo not found, proceeding without left logo');
+    }
+
+    try {
+      // Right logo (Halcyon)
+      if (fs.existsSync(finalLogoPath)) {
+        doc.image(finalLogoPath, 465, headerY, { width: logoSize, height: logoSize });
+        console.log('Halcyon logo added successfully');
+      }
+    } catch (error) {
+      console.log('Halcyon logo not found, proceeding without right logo');
     }
 
     if (!registrations) return res.status(404).json({ error: "No registrations found" });
 
-    // Add the title - perfectly centered considering logo space
-    doc.fontSize(48)
+    // Add the title - centered between logos, reduced size
+    doc.fontSize(32) // Reduced from 48 to 32
        .font('Times-Bold')
-       .text('HALCYON 2025', 170, 80, {
+       .text('HALCYON 2025', 150, headerY + 25, { // Adjusted Y position to center vertically with logos
          align: 'center',
-         width: 300
+         width: 295 // Width between the two logos
        });
 
     // Add event name
     doc.fontSize(14)
        .font('Times-Roman')
-       .text(`Event: ${event.name}`, 50, 160, { align: 'left' });
+       .text(`Event: ${event.name}`, 50, 140, { align: 'left' });
 
     // Create the table with perfect dimensions
-    const startY = 200;
+    const startY = 170; // Positioned below event name
     const pageWidth = 595; // A4 width in points
     const leftMargin = 50;
     const rightMargin = 50;
     const tableWidth = pageWidth - leftMargin - rightMargin; // 495 points exactly
     const rowHeight = 30;
 
-    // Column widths for registration table
+    // Column widths for registration table - adjusted to fit within table width
     const colWidths = {
-      slNo: 60,        // Sl. No.
-      collegeCode: 100, // College Code (empty as per user preference)
-      name: 180,       // Name
-      usn: 100,        // USN
-      contact: 155     // Contact No.
+      slNo: 50,        // Sl. No. (reduced)
+      collegeCode: 80, // College Code (reduced)
+      name: 200,       // Name (increased)
+      usn: 90,         // USN (reduced)
+      contact: 75      // Contact No. (reduced to fit)
     };
+
+    // Verify total width doesn't exceed table width
+    const totalColWidth = Object.values(colWidths).reduce((sum, width) => sum + width, 0);
+    console.log(`Table width: ${tableWidth}, Column total: ${totalColWidth}`);
 
     // Draw table headers
     let currentY = startY;
@@ -487,7 +508,7 @@ const generatePdf = async (req, res) => {
         // Check if this is a team event (has team members or team name)
         const isTeamEvent = (registration.teamMembers && registration.teamMembers.length > 0) || registration.teamName;
 
-        doc.fontSize(10).font('Times-Roman');
+        doc.fontSize(9).font('Times-Roman'); // Reduced font size to fit content better
 
         if (isTeamEvent) {
           // Add team name row with team leader name (bold background)
@@ -581,7 +602,7 @@ const generatePdf = async (req, res) => {
                 // Draw the right border
                 doc.moveTo(xPos, currentY - rowHeight).lineTo(xPos, currentY).stroke();
 
-                doc.fontSize(10).font('Times-Roman');
+                doc.fontSize(9).font('Times-Roman'); // Consistent font size
               }
             });
           }
@@ -639,7 +660,7 @@ const generatePdf = async (req, res) => {
             // Draw the right border
             doc.moveTo(xPos, currentY - rowHeight).lineTo(xPos, currentY).stroke();
 
-            doc.fontSize(10).font('Times-Roman');
+            doc.fontSize(9).font('Times-Roman'); // Consistent font size
           }
         }
       });
