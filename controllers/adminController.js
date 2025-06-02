@@ -109,6 +109,7 @@ const assignTeamMember = async (req, res) => {
 const generateJudgePdf = async (req, res) => {
   try {
     console.log('Judge PDF generation started for event');
+    console.log('Note: Updated for production environment compatibility - fixed alignment issues');
     const { eventID } = req.params;
     const event = await Event.findById(eventID);
     if (!event) return res.status(404).json({ error: "Event not found" });
@@ -347,133 +348,134 @@ const generateJudgePdf = async (req, res) => {
     <meta charset="UTF-8">
     <title>Judge Sheet - ${event.name}</title>
     <style>
+        /* Reset and base styles for consistent rendering across environments */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            font-family: 'Times New Roman', serif;
+            font-family: 'Times New Roman', 'Times', serif;
             margin: 0;
             padding: 20px;
             color: #000;
             line-height: 1.2;
             font-size: 12pt;
+            background: white;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
+
+        /* Header section with absolute positioning for consistent layout */
         .header-container {
             width: 100%;
-            margin-bottom: 20px;
+            height: 120px;
+            margin-bottom: 30px;
             position: relative;
+            border: none;
         }
-        .header-layout {
-            display: table;
-            width: 100%;
-            table-layout: fixed;
-        }
-        .logo-cell {
-            display: table-cell;
-            width: 120px;
-            vertical-align: middle;
-            text-align: left;
-        }
-        .title-cell {
-            display: table-cell;
-            vertical-align: middle;
-            text-align: center;
-            padding: 0 20px;
-        }
+
         .logo-left {
+            position: absolute;
+            left: 0;
+            top: 0;
             width: 110px;
             height: 110px;
             display: block;
         }
+
         .title-text {
-            font-size: 48pt;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 52pt;
             font-weight: bold;
-            font-family: 'Times New Roman', serif;
+            font-family: 'Times New Roman', 'Times', serif;
             margin: 0;
             line-height: 1;
             text-align: center;
+            white-space: nowrap;
         }
+
         .subtitle {
             text-align: center;
-            margin: 20px 0 10px 0;
-            font-size: 18pt;
+            margin: 20px 0 15px 0;
+            font-size: 20pt;
             text-decoration: underline;
             font-weight: bold;
+            font-family: 'Times New Roman', 'Times', serif;
         }
+
         .event-label {
             text-align: left;
-            margin: 10px 0 20px 0;
+            margin: 15px 0 25px 0;
             font-size: 16pt;
             font-weight: normal;
+            font-family: 'Times New Roman', 'Times', serif;
         }
+
+        /* Table styles with fixed layout for consistent rendering */
         .judge-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
+            margin-top: 15px;
             table-layout: fixed;
+            font-family: 'Times New Roman', 'Times', serif;
         }
+
         .judge-table th,
         .judge-table td {
-            border: 1pt solid black;
-            padding: 8px 4px;
+            border: 1pt solid #000;
+            padding: 6px 4px;
             text-align: center;
             vertical-align: middle;
             font-size: 10pt;
+            word-wrap: break-word;
         }
+
         .judge-table th {
             font-weight: bold;
             font-size: 12pt;
             background-color: #f5f5f5;
         }
+
+        /* Fixed column widths for consistent layout */
         .col-sl-no { width: 60px; }
-        .col-name { width: 180px; }
+        .col-name { width: 180px; text-align: left; }
         .col-college { width: 100px; }
         .col-param { width: 90px; }
         .col-total { width: 70px; }
 
+        /* Print-specific styles */
         @media print {
-            body { margin: 0; padding: 15px; }
-            .header-container { page-break-inside: avoid; }
-            .judge-table { page-break-inside: avoid; }
+            body {
+                margin: 0;
+                padding: 15px;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .header-container {
+                page-break-inside: avoid;
+                height: 120px;
+            }
+            .judge-table {
+                page-break-inside: avoid;
+            }
         }
-            font-weight: bold;
-        }
-        .judge-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            font-size: 12pt;
-        }
-        .judge-table th,
-        .judge-table td {
-            border: 1px solid #000;
-            padding: 8px;
-            text-align: center;
-            vertical-align: middle;
-        }
-        .judge-table th {
-            background-color: #f0f0f0;
-            font-weight: bold;
-        }
-        .judge-table .sl-no {
-            width: 60px;
-        }
-        .judge-table .name {
-            width: 180px;
-            text-align: left;
-        }
-        .judge-table .college-code {
-            width: 100px;
-        }
-        .judge-table .param {
-            width: 90px;
-        }
-        .judge-table .total {
-            width: 70px;
+
+        /* Production environment compatibility */
+        @page {
+            margin: 0.5in;
+            size: A4;
         }
     </style>
 </head>
 <body>
-    <div class="header-section">
+    <div class="header-container">
         <img class="logo-left" src="${sitLogoBase64}" alt="SIT Logo">
-        <span class="title-text">HALCYON 2025</span>
+        <div class="title-text">HALCYON 2025</div>
     </div>
 
     <div class="subtitle">Judging parameters</div>
@@ -483,18 +485,18 @@ const generateJudgePdf = async (req, res) => {
     <table class="judge-table">
         <thead>
             <tr>
-                <th rowspan="2" class="sl-no">Sl. No.</th>
-                <th rowspan="2" class="name">Name</th>
-                <th rowspan="2" class="college-code">College code</th>
+                <th rowspan="2" class="col-sl-no">Sl. No.</th>
+                <th rowspan="2" class="col-name">Name</th>
+                <th rowspan="2" class="col-college">College code</th>
                 <th colspan="5">Judging Parameters</th>
-                <th rowspan="2" class="total">Total</th>
+                <th rowspan="2" class="col-total">Total</th>
             </tr>
             <tr>
-                <th class="param">&nbsp;</th>
-                <th class="param">&nbsp;</th>
-                <th class="param">&nbsp;</th>
-                <th class="param">&nbsp;</th>
-                <th class="param">&nbsp;</th>
+                <th class="col-param">&nbsp;</th>
+                <th class="col-param">&nbsp;</th>
+                <th class="col-param">&nbsp;</th>
+                <th class="col-param">&nbsp;</th>
+                <th class="col-param">&nbsp;</th>
             </tr>
         </thead>
         <tbody>
@@ -509,15 +511,15 @@ const generateJudgePdf = async (req, res) => {
 
                 return `
                   <tr>
-                    <td class="sl-no">${index + 1}</td>
-                    <td class="name">${displayName}</td>
-                    <td class="college-code">&nbsp;</td>
-                    <td class="param">&nbsp;</td>
-                    <td class="param">&nbsp;</td>
-                    <td class="param">&nbsp;</td>
-                    <td class="param">&nbsp;</td>
-                    <td class="param">&nbsp;</td>
-                    <td class="total">&nbsp;</td>
+                    <td class="col-sl-no">${index + 1}</td>
+                    <td class="col-name">${displayName}</td>
+                    <td class="col-college">&nbsp;</td>
+                    <td class="col-param">&nbsp;</td>
+                    <td class="col-param">&nbsp;</td>
+                    <td class="col-param">&nbsp;</td>
+                    <td class="col-param">&nbsp;</td>
+                    <td class="col-param">&nbsp;</td>
+                    <td class="col-total">&nbsp;</td>
                   </tr>`;
               } else {
                 // For individual events: Show participant name only
@@ -527,15 +529,15 @@ const generateJudgePdf = async (req, res) => {
 
                 return `
                   <tr>
-                    <td class="sl-no">${index + 1}</td>
-                    <td class="name">${participantName}</td>
-                    <td class="college-code">&nbsp;</td>
-                    <td class="param">&nbsp;</td>
-                    <td class="param">&nbsp;</td>
-                    <td class="param">&nbsp;</td>
-                    <td class="param">&nbsp;</td>
-                    <td class="param">&nbsp;</td>
-                    <td class="total">&nbsp;</td>
+                    <td class="col-sl-no">${index + 1}</td>
+                    <td class="col-name">${participantName}</td>
+                    <td class="col-college">&nbsp;</td>
+                    <td class="col-param">&nbsp;</td>
+                    <td class="col-param">&nbsp;</td>
+                    <td class="col-param">&nbsp;</td>
+                    <td class="col-param">&nbsp;</td>
+                    <td class="col-param">&nbsp;</td>
+                    <td class="col-total">&nbsp;</td>
                   </tr>`;
               }
             }).join('')}
@@ -560,14 +562,40 @@ const generateJudgePdf = async (req, res) => {
       type: "pdf",
       quality: "100",
       height: "11.7in",
-      width: "8.3in"
+      width: "8.3in",
+      // Additional options for production environment compatibility
+      timeout: 30000,
+      phantomPath: undefined, // Let html-pdf find PhantomJS automatically
+      phantomArgs: [
+        '--load-images=yes',
+        '--local-to-remote-url-access=yes',
+        '--web-security=no',
+        '--ignore-ssl-errors=yes',
+        '--ssl-protocol=any'
+      ],
+      // Rendering options for consistent output
+      renderDelay: 1000,
+      zoomFactor: 1.0,
+      // Font rendering options
+      dpi: 96,
+      script: undefined
     };
 
     pdf.create(judgeHtml, options).toBuffer((err, buffer) => {
       if (err) {
-        console.error(err);
-        return res.status(500).json({ error: "Error generating judge PDF" });
+        console.error('Judge PDF generation error:', err);
+        console.error('Error details:', {
+          message: err.message,
+          stack: err.stack,
+          phantomPath: options.phantomPath,
+          environment: process.env.NODE_ENV || 'development'
+        });
+        return res.status(500).json({
+          error: "Error generating judge PDF",
+          details: process.env.NODE_ENV === 'development' ? err.message : 'PDF generation failed'
+        });
       }
+      console.log('Judge PDF generated successfully');
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=${event.name.replace(/\s+/g, '_')}_Judge_Sheet_${Date.now()}.pdf`);
       res.send(buffer);
