@@ -4,7 +4,7 @@ require('dotenv').config();
 async function updateIndexes() {
     try {
         // Connect to MongoDB
-        await mongoose.connect(process.env.MONGO_URI);
+        await mongoose.connect(process.env.MONGODB_URL);
         console.log('Connected to MongoDB');
 
         // Get the registrations collection
