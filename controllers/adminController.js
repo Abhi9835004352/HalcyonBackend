@@ -2,6 +2,7 @@ const User = require('../models/userModel');
 const Registration = require('../models/registrationModel');
 const Event = require('../models/eventModel');
 const pdf = require('html-pdf');
+const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const Excel = require('exceljs');
@@ -106,6 +107,180 @@ const assignTeamMember = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+// New PDFKit-based judge PDF generation for consistent cross-environment output
+const generateJudgePdfWithPDFKit = async (req, res) => {
+  try {
+    console.log('Judge PDF generation started using PDFKit (production-compatible)');
+    const { eventID } = req.params;
+    const event = await Event.findById(eventID);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    // Get registrations with participant details
+    const registrations = await Registration.find({ event: eventID })
+      .populate('teamLeader', 'name email mobile usn')
+      .populate('spotRegistration', 'name email mobile')
+      .populate('event', 'name date venue category day fees')
+      .lean();
+
+    console.log(`Found ${registrations.length} registrations for judge PDF`);
+
+    // Create a new PDF document
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: 50,
+      bufferPages: true
+    });
+
+    // Collect the PDF data
+    const chunks = [];
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => {
+      const pdfBuffer = Buffer.concat(chunks);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=${event.name.replace(/\s+/g, '_')}_Judge_Sheet_${Date.now()}.pdf`);
+      res.send(pdfBuffer);
+    });
+
+    // Load and add the SIT logo
+    const sitLogoPath = path.join(__dirname, '../resources/images/sit_logo-removebg-preview.png');
+    let logoExists = false;
+    try {
+      if (fs.existsSync(sitLogoPath)) {
+        doc.image(sitLogoPath, 50, 50, { width: 100, height: 100 });
+        logoExists = true;
+      }
+    } catch (error) {
+      console.log('Logo not found, proceeding without logo');
+    }
+
+    // Add the title
+    doc.fontSize(48)
+       .font('Times-Bold')
+       .text('HALCYON 2025', logoExists ? 200 : 50, 80, {
+         align: logoExists ? 'center' : 'left',
+         width: logoExists ? 300 : 500
+       });
+
+    // Add subtitle
+    doc.fontSize(18)
+       .font('Times-Bold')
+       .text('Judging parameters', 50, 180, { align: 'center', width: 500, underline: true });
+
+    // Add event name
+    doc.fontSize(14)
+       .font('Times-Roman')
+       .text(`Event: ${event.name}`, 50, 220, { align: 'left' });
+
+    // Create the table
+    const startY = 260;
+    const tableWidth = 500;
+    const rowHeight = 25;
+    const colWidths = [50, 150, 80, 60, 60, 60, 60, 60, 60]; // Column widths
+
+    // Table headers
+    let currentY = startY;
+
+    // Draw table border
+    doc.rect(50, currentY, tableWidth, rowHeight * 2).stroke();
+
+    // Header row 1
+    doc.fontSize(10).font('Times-Bold');
+    let currentX = 50;
+
+    // Sl. No. (rowspan 2)
+    doc.rect(currentX, currentY, colWidths[0], rowHeight * 2).stroke();
+    doc.text('Sl.\nNo.', currentX + 5, currentY + 5, { width: colWidths[0] - 10, align: 'center' });
+    currentX += colWidths[0];
+
+    // Name (rowspan 2)
+    doc.rect(currentX, currentY, colWidths[1], rowHeight * 2).stroke();
+    doc.text('Name', currentX + 5, currentY + 8, { width: colWidths[1] - 10, align: 'center' });
+    currentX += colWidths[1];
+
+    // College code (rowspan 2)
+    doc.rect(currentX, currentY, colWidths[2], rowHeight * 2).stroke();
+    doc.text('College\ncode', currentX + 5, currentY + 5, { width: colWidths[2] - 10, align: 'center' });
+    currentX += colWidths[2];
+
+    // Judging Parameters (colspan 5)
+    const judgingParamsWidth = colWidths[3] + colWidths[4] + colWidths[5] + colWidths[6] + colWidths[7];
+    doc.rect(currentX, currentY, judgingParamsWidth, rowHeight).stroke();
+    doc.text('Judging Parameters', currentX + 5, currentY + 8, { width: judgingParamsWidth - 10, align: 'center' });
+
+    // Total (rowspan 2)
+    const totalX = currentX + judgingParamsWidth;
+    doc.rect(totalX, currentY, colWidths[8], rowHeight * 2).stroke();
+    doc.text('Total', totalX + 5, currentY + 8, { width: colWidths[8] - 10, align: 'center' });
+
+    // Header row 2 (parameter columns)
+    currentY += rowHeight;
+    currentX = 50 + colWidths[0] + colWidths[1] + colWidths[2]; // Start after the rowspan columns
+
+    for (let i = 0; i < 5; i++) {
+      doc.rect(currentX, currentY, colWidths[3 + i], rowHeight).stroke();
+      currentX += colWidths[3 + i];
+    }
+
+    // Add data rows
+    currentY += rowHeight;
+    registrations.forEach((reg, index) => {
+      // Determine if this is a spot registration
+      const isSpotRegistration = reg.spotRegistration !== null;
+
+      // Get the correct team leader name based on registration type
+      const teamLeaderName = isSpotRegistration && reg.teamLeaderDetails?.name
+        ? reg.teamLeaderDetails.name
+        : reg.teamLeader?.name || 'Unknown';
+
+      let displayName;
+      if (reg.teamMembers && reg.teamMembers.length > 0) {
+        // For team events: Show "Team Name - Team Leader Name"
+        const teamName = reg.teamName || 'Unnamed Team';
+        displayName = `${teamName} - ${teamLeaderName}`;
+      } else {
+        // For individual events: Show participant name only
+        displayName = teamLeaderName;
+      }
+
+      // Draw row
+      currentX = 50;
+      doc.rect(currentX, currentY, tableWidth, rowHeight).stroke();
+
+      // Draw vertical lines for columns
+      for (let i = 0; i < colWidths.length - 1; i++) {
+        currentX += colWidths[i];
+        doc.moveTo(currentX, currentY).lineTo(currentX, currentY + rowHeight).stroke();
+      }
+
+      // Add data
+      doc.fontSize(9).font('Times-Roman');
+      currentX = 50;
+
+      // Serial number
+      doc.text((index + 1).toString(), currentX + 5, currentY + 8, { width: colWidths[0] - 10, align: 'center' });
+      currentX += colWidths[0];
+
+      // Name
+      doc.text(displayName, currentX + 5, currentY + 8, { width: colWidths[1] - 10, align: 'left' });
+
+      currentY += rowHeight;
+
+      // Check if we need a new page
+      if (currentY > 700) {
+        doc.addPage();
+        currentY = 50;
+      }
+    });
+
+    // Finalize the PDF
+    doc.end();
+
+  } catch (err) {
+    console.error('Error in generateJudgePdfWithPDFKit:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 const generateJudgePdf = async (req, res) => {
   try {
     console.log('Judge PDF generation started for event');
@@ -1759,6 +1934,7 @@ module.exports = {
   assignTeamMember,
   generatePdf,
   generateJudgePdf,
+  generateJudgePdfWithPDFKit, // New PDFKit-based function for production compatibility
   deleteEvent,
   editEvent,
   exportRegistrationsToExcel,
