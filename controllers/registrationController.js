@@ -404,6 +404,26 @@ const spotRegistration = async (req, res) => {
         console.log('Final payment mode to be stored:', paymentMode);
         console.log('Final payment status to be stored:', paymentStatus);
 
+        // Check for duplicate participant USN in spot registrations
+        if (teamLeaderDetails.usn) {
+            const existingParticipant = await Registration.findOne({
+                event: eventId,
+                'teamLeaderDetails.usn': teamLeaderDetails.usn,
+                spotRegistration: { $exists: true }
+            });
+
+            if (existingParticipant) {
+                return res.status(400).json({
+                    error: `A participant with USN "${teamLeaderDetails.usn}" is already registered for this event.`,
+                    existingRegistration: {
+                        participantName: existingParticipant.teamLeaderDetails?.name,
+                        teamName: existingParticipant.teamName,
+                        registeredAt: existingParticipant.registeredAt
+                    }
+                });
+            }
+        }
+
         // For team events, check if a registration already exists for this event with the same team name
         // This prevents multiple team members from creating separate registrations for the same team
         if (teamName && teamSize > 1) {

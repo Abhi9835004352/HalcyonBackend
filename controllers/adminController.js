@@ -364,6 +364,11 @@ const generatePdf = async (req, res) => {
 
     console.log(`Found ${registrations.length} registrations for registration PDF`);
 
+    // Debug: Log registration data structure
+    if (registrations.length > 0) {
+      console.log('Sample registration data:', JSON.stringify(registrations[0], null, 2));
+    }
+
     // Create a new PDF document
     const doc = new PDFDocument({
       size: 'A4',
@@ -443,12 +448,12 @@ const generatePdf = async (req, res) => {
 
     // Draw vertical lines for headers
     let xPos = leftMargin;
-    [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
-      if (index > 0) {
-        doc.moveTo(xPos, startY).lineTo(xPos, currentY).stroke();
-      }
+    [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width) => {
+      doc.moveTo(xPos, startY).lineTo(xPos, currentY).stroke();
       xPos += width;
     });
+    // Draw the right border
+    doc.moveTo(xPos, startY).lineTo(xPos, currentY).stroke();
 
     // Process registrations data
     if (registrations.length === 0) {
@@ -460,10 +465,17 @@ const generatePdf = async (req, res) => {
         align: 'center'
       });
       currentY += rowHeight;
+    } else {
       // Process registrations data
       let teamIndex = 0;
       registrations.forEach((registration) => {
         teamIndex++;
+        console.log(`Processing registration ${teamIndex}:`, {
+          teamName: registration.teamName,
+          teamLeader: registration.teamLeader?.name,
+          teamLeaderDetails: registration.teamLeaderDetails?.name,
+          teamMembers: registration.teamMembers?.length || 0
+        });
 
         // Get team leader details
         const leaderName = registration.spotRegistration && registration.teamLeaderDetails?.name
@@ -489,12 +501,12 @@ const generatePdf = async (req, res) => {
 
           // Draw vertical lines for team header
           let xPos = leftMargin;
-          [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
-            if (index > 0) {
-              doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
-            }
+          [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width) => {
+            doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
             xPos += width;
           });
+          // Draw the right border
+          doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
 
           currentY += rowHeight;
 
@@ -508,12 +520,12 @@ const generatePdf = async (req, res) => {
 
           // Draw vertical lines for team leader
           xPos = leftMargin;
-          [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
-            if (index > 0) {
-              doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
-            }
+          [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width) => {
+            doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
             xPos += width;
           });
+          // Draw the right border
+          doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
 
           currentY += rowHeight;
 
@@ -529,12 +541,12 @@ const generatePdf = async (req, res) => {
 
               // Draw vertical lines for team member
               xPos = leftMargin;
-              [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
-                if (index > 0) {
-                  doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
-                }
+              [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width) => {
+                doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
                 xPos += width;
               });
+              // Draw the right border
+              doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
 
               currentY += rowHeight;
 
@@ -562,12 +574,12 @@ const generatePdf = async (req, res) => {
 
                 // Draw vertical lines for headers
                 xPos = leftMargin;
-                [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
-                  if (index > 0) {
-                    doc.moveTo(xPos, startY).lineTo(xPos, currentY).stroke();
-                  }
+                [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width) => {
+                  doc.moveTo(xPos, currentY - rowHeight).lineTo(xPos, currentY).stroke();
                   xPos += width;
                 });
+                // Draw the right border
+                doc.moveTo(xPos, currentY - rowHeight).lineTo(xPos, currentY).stroke();
 
                 doc.fontSize(10).font('Times-Roman');
               }
@@ -587,12 +599,12 @@ const generatePdf = async (req, res) => {
 
           // Draw vertical lines for individual
           let xPos = leftMargin;
-          [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
-            if (index > 0) {
-              doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
-            }
+          [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width) => {
+            doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
             xPos += width;
           });
+          // Draw the right border
+          doc.moveTo(xPos, currentY).lineTo(xPos, currentY + rowHeight).stroke();
 
           currentY += rowHeight;
 
@@ -620,12 +632,12 @@ const generatePdf = async (req, res) => {
 
             // Draw vertical lines for headers
             let xPos = leftMargin;
-            [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width, index) => {
-              if (index > 0) {
-                doc.moveTo(xPos, startY).lineTo(xPos, currentY).stroke();
-              }
+            [colWidths.slNo, colWidths.collegeCode, colWidths.name, colWidths.usn, colWidths.contact].forEach((width) => {
+              doc.moveTo(xPos, currentY - rowHeight).lineTo(xPos, currentY).stroke();
               xPos += width;
             });
+            // Draw the right border
+            doc.moveTo(xPos, currentY - rowHeight).lineTo(xPos, currentY).stroke();
 
             doc.fontSize(10).font('Times-Roman');
           }

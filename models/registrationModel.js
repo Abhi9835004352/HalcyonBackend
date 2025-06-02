@@ -117,7 +117,28 @@ const registrationSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Create a compound unique index to prevent duplicate registrations
-// This ensures that the same user (teamLeader) cannot register for the same event twice
-registrationSchema.index({ event: 1, teamLeader: 1 }, { unique: true });
+// For regular registrations: prevent the same user from registering twice for the same event
+// For spot registrations: allow multiple registrations by the same team member but prevent duplicate participants
+registrationSchema.index({
+    event: 1,
+    teamLeader: 1,
+    'teamLeaderDetails.usn': 1
+}, {
+    unique: true,
+    partialFilterExpression: {
+        spotRegistration: { $exists: false }
+    }
+});
+
+// For spot registrations: prevent duplicate participant USNs for the same event
+registrationSchema.index({
+    event: 1,
+    'teamLeaderDetails.usn': 1
+}, {
+    unique: true,
+    partialFilterExpression: {
+        spotRegistration: { $exists: true }
+    }
+});
 
 module.exports = mongoose.model('Registration', registrationSchema);
