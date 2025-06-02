@@ -153,12 +153,12 @@ const generateJudgePdf = async (req, res) => {
       console.log('Logo not found, proceeding without logo');
     }
 
-    // Add the title - properly centered
-    doc.fontSize(48)
+    // Add the title - aligned horizontally with logo
+    doc.fontSize(36)  // Reduced from 48 to 36 for better alignment
        .font('Times-Bold')
-       .text('HALCYON 2025', 50, 80, {
+       .text('HALCYON 2025', 170, 95, {  // Adjusted Y position to align with logo center
          align: 'center',
-         width: 500
+         width: 300
        });
 
     // Add subtitle
@@ -175,22 +175,34 @@ const generateJudgePdf = async (req, res) => {
        .font('Times-Roman')
        .text(`Event: ${event.name}`, 50, 200, { align: 'left' });
 
-    // Create the table with proper dimensions
+    // Create the table with perfect dimensions
     const startY = 240;
-    const tableWidth = 495; // Fit within page margins (595 - 50*2 = 495)
-    const rowHeight = 25;
-    // Adjusted column widths to fit properly: Sl.No(40) + Name(140) + College(70) + 5 Params(45 each) + Total(50) = 495
-    const colWidths = [40, 140, 70, 45, 45, 45, 45, 45, 50];
+    const pageWidth = 595; // A4 width in points
+    const leftMargin = 50;
+    const rightMargin = 50;
+    const tableWidth = pageWidth - leftMargin - rightMargin; // 495 points exactly
+    const rowHeight = 30; // Increased from 25 to 30 to accommodate longer names
+
+    // Perfectly calculated column widths that sum to exactly 495:
+    // Increased name column width for better readability without truncation
+    // Sl.No(30) + Name(170) + College(55) + 5 Params(42 each) + Total(40) = 30+170+55+210+40 = 505
+    // Adjusted: Sl.No(30) + Name(170) + College(55) + 5 Params(42 each) + Total(38) = 30+170+55+210+38 = 503
+    // Final: Sl.No(30) + Name(170) + College(55) + 5 Params(41 each) + Total(35) = 30+170+55+205+35 = 495
+    const colWidths = [30, 170, 55, 41, 41, 41, 41, 41, 35];
+
+    // Verify total width
+    const totalWidth = colWidths.reduce((sum, width) => sum + width, 0);
+    console.log(`Table width verification: ${totalWidth} should equal ${tableWidth}`);
 
     // Table headers
     let currentY = startY;
 
-    // Draw main table border
-    doc.rect(50, currentY, tableWidth, rowHeight * 2).stroke();
+    // Draw main table border - perfectly aligned
+    doc.rect(leftMargin, currentY, tableWidth, rowHeight * 2).stroke();
 
     // Header row 1
     doc.fontSize(10).font('Times-Bold');
-    let currentX = 50;
+    let currentX = leftMargin;
 
     // Sl. No. (rowspan 2)
     doc.rect(currentX, currentY, colWidths[0], rowHeight * 2).stroke();
@@ -212,14 +224,19 @@ const generateJudgePdf = async (req, res) => {
     doc.rect(currentX, currentY, judgingParamsWidth, rowHeight).stroke();
     doc.text('Judging Parameters', currentX + 2, currentY + 8, { width: judgingParamsWidth - 4, align: 'center' });
 
-    // Total (rowspan 2)
+    // Total (rowspan 2) - ensure it ends exactly at right margin
     const totalX = currentX + judgingParamsWidth;
     doc.rect(totalX, currentY, colWidths[8], rowHeight * 2).stroke();
     doc.text('Total', totalX + 2, currentY + 18, { width: colWidths[8] - 4, align: 'center' });
 
+    // Verify right edge alignment
+    const rightEdge = totalX + colWidths[8];
+    const expectedRightEdge = leftMargin + tableWidth;
+    console.log(`Table right edge: ${rightEdge}, Expected: ${expectedRightEdge}`);
+
     // Header row 2 (parameter columns)
     currentY += rowHeight;
-    currentX = 50 + colWidths[0] + colWidths[1] + colWidths[2]; // Start after the rowspan columns
+    currentX = leftMargin + colWidths[0] + colWidths[1] + colWidths[2]; // Start after the rowspan columns
 
     // Draw individual parameter column headers
     for (let i = 0; i < 5; i++) {
@@ -252,10 +269,10 @@ const generateJudgePdf = async (req, res) => {
       }
 
       // Draw row border
-      doc.rect(50, currentY, tableWidth, rowHeight).stroke();
+      doc.rect(leftMargin, currentY, tableWidth, rowHeight).stroke();
 
       // Draw vertical lines for all columns
-      currentX = 50;
+      currentX = leftMargin;
       for (let i = 0; i < colWidths.length - 1; i++) {
         currentX += colWidths[i];
         doc.moveTo(currentX, currentY).lineTo(currentX, currentY + rowHeight).stroke();
@@ -263,7 +280,7 @@ const generateJudgePdf = async (req, res) => {
 
       // Add data to cells
       doc.fontSize(8).font('Times-Roman');
-      currentX = 50;
+      currentX = leftMargin;
 
       // Serial number
       doc.text((index + 1).toString(), currentX + 2, currentY + 8, {
@@ -272,11 +289,11 @@ const generateJudgePdf = async (req, res) => {
       });
       currentX += colWidths[0];
 
-      // Name (truncate if too long)
-      const truncatedName = displayName.length > 20 ? displayName.substring(0, 17) + '...' : displayName;
-      doc.text(truncatedName, currentX + 2, currentY + 8, {
+      // Name (full name without truncation, with text wrapping)
+      doc.text(displayName, currentX + 2, currentY + 4, {
         width: colWidths[1] - 4,
-        align: 'left'
+        align: 'left',
+        lineBreak: true  // Enable line breaks for long names
       });
       currentX += colWidths[1];
 
@@ -311,11 +328,11 @@ const generateJudgePdf = async (req, res) => {
 
         // Redraw headers on new page
         doc.fontSize(14).font('Times-Bold');
-        doc.text(`Event: ${event.name} (continued)`, 50, currentY, { align: 'left' });
+        doc.text(`Event: ${event.name} (continued)`, leftMargin, currentY, { align: 'left' });
         currentY += 30;
 
         // Redraw table headers
-        doc.rect(50, currentY, tableWidth, rowHeight * 2).stroke();
+        doc.rect(leftMargin, currentY, tableWidth, rowHeight * 2).stroke();
         // ... (header redraw code would go here if needed)
         currentY += rowHeight * 2;
       }
