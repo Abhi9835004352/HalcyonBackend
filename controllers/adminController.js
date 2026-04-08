@@ -10,7 +10,6 @@ const mongoose = require('mongoose');
 const { sendRegistrationEmail } = require('../utils/mailer');
 const imagePath = path.join(__dirname, '../resources/image.png');
 let imageBase64 = '';
-
 // Define EVENT_CATEGORIES constant for use in Excel exports
 const EVENT_CATEGORIES = [
   { id: 'dance', label: 'Dance', icon: 'fas fa-walking' },
