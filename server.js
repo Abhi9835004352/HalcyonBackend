@@ -33,40 +33,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     const allowedOrigins = [
-      // Development URLs
-      'http://localhost:5173', // Vite default port
-      'http://localhost:5174', // Alternative Vite port
-      'http://localhost:5175', // Alternative Vite port
-      'http://localhost:5176', // Alternative Vite port
-      'http://localhost:3000', // React default port
-      'http://127.0.0.1:5173', // Alternative localhost
-      'http://127.0.0.1:5174', // Alternative localhost
-      'http://127.0.0.1:5175', // Alternative localhost
-
-      // Production URLs (add multiple possible frontend URLs)
-      'https://halcyonfrontend.onrender.com',
-      'https://halcyon-frontend.onrender.com',
-      'https://halcyonfest.netlify.app',
-      'https://halcyon2025.netlify.app',
-      'https://halcyon-2025.netlify.app',
-      'https://halcyonfestival.netlify.app',
-      'https://halcyon-festival.netlify.app',
-      'https://halcyon-fest.netlify.app',
-      'https://halcyonfest2025.netlify.app',
-      'https://halcyon2025fest.netlify.app',
-
-      // Add common Netlify patterns
-      'https://halcyon.netlify.app',
-      'https://halcyonfrontend.netlify.app',
-      'https://halcyon-frontend.netlify.app',
-
-      // Add Vercel patterns (in case deployed there)
-      'https://halcyon.vercel.app',
-      'https://halcyon-frontend.vercel.app',
-      'https://halcyonfrontend.vercel.app',
-
-      // Add any custom domain if you have one
-      // 'https://yourdomain.com',
+      "https://halcyonsit.in"
     ];
 
     // Check if the origin is in the allowed list
