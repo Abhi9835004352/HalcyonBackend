@@ -33,7 +33,8 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     const allowedOrigins = [
-      "https://halcyonsit.in"
+      "https://halcyonsit.in",
+      "http://localhost:5173"
     ];
 
     // Check if the origin is in the allowed list
