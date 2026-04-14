@@ -143,6 +143,7 @@ const generateJudgePdf = async (req, res) => {
 
     // Load and add the SIT logo
     const sitLogoPath = path.join(__dirname, '../resources/images/sit_logo-removebg-preview.png');
+    const finalLogoPath = path.join(__dirname, '../resources/images/finallogo.png');
     try {
       if (fs.existsSync(sitLogoPath)) {
         doc.image(sitLogoPath, 50, 50, { width: 100, height: 100 });
@@ -150,6 +151,14 @@ const generateJudgePdf = async (req, res) => {
       }
     } catch (error) {
       console.log('Logo not found, proceeding without logo');
+    }
+    try{
+      if(fs.existsSync(finalLogoPath)){
+        doc.image(finalLogoPath, 445, 50, { width: 100, height: 100 });
+        console.log('Halcyon logo added successfully');
+      }
+    }catch(error){
+      console.log('Halcyon logo not found, proceeding without right logo');
     }
 
     // Add the title - aligned horizontally with logo
