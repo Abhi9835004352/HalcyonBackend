@@ -154,7 +154,7 @@ const generateJudgePdf = async (req, res) => {
     }
     try{
       if(fs.existsSync(finalLogoPath)){
-        doc.image(finalLogoPath, 445, 50, { width: 100, height: 100 });
+        doc.image(finalLogoPath, 465, 50, { width: 100, height: 100 });
         console.log('Halcyon logo added successfully');
       }
     }catch(error){
