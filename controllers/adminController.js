@@ -155,7 +155,7 @@ const generateJudgePdf = async (req, res) => {
     // Add the title - aligned horizontally with logo
     doc.fontSize(36)  // Reduced from 48 to 36 for better alignment
        .font('Times-Bold')
-       .text('HALCYON 2025', 170, 95, {  // Adjusted Y position to align with logo center
+       .text('HALCYON 2026', 170, 95, {  // Adjusted Y position to align with logo center
          align: 'center',
          width: 300
        });
@@ -418,7 +418,7 @@ const generatePdf = async (req, res) => {
     // Add the title - centered between logos, reduced size
     doc.fontSize(32) // Reduced from 48 to 32
        .font('Times-Bold')
-       .text('HALCYON 2025', 150, headerY + 25, { // Adjusted Y position to center vertically with logos
+       .text('HALCYON 2026', 150, headerY + 25, { // Adjusted Y position to center vertically with logos
          align: 'center',
          width: 295 // Width between the two logos
        });
@@ -702,7 +702,7 @@ const exportRegistrationsToExcel = async (req, res) => {
   try {
     // Create a new Excel workbook
     const workbook = new Excel.Workbook();
-    workbook.creator = 'Halcyon 2025';
+    workbook.creator = 'Halcyon 2026';
     workbook.lastModifiedBy = 'Admin Dashboard';
     workbook.created = new Date();
     workbook.modified = new Date();
@@ -1074,7 +1074,7 @@ const exportSingleEventToExcel = async (req, res) => {
 
     // Create a new Excel workbook
     const workbook = new Excel.Workbook();
-    workbook.creator = 'Halcyon 2025';
+    workbook.creator = 'Halcyon 2026';
     workbook.lastModifiedBy = 'Admin Dashboard';
     workbook.created = new Date();
     workbook.modified = new Date();
