@@ -511,7 +511,9 @@ const generatePdf = async (req, res) => {
           ? registration.teamLeaderDetails.name
           : registration.teamLeader?.name || 'N/A';
         const leaderUSN = registration.teamLeaderDetails?.usn || 'N/A';
-        const leaderMobile = registration.teamLeader?.mobile || 'N/A';
+        const leaderMobile = registration.spotRegistration && registration.teamLeaderDetails?.mobile
+          ? registration.teamLeaderDetails.mobile
+          : registration.teamLeader?.mobile || 'N/A';
 
         // Check if this is a team event (has team members or team name)
         const isTeamEvent = (registration.teamMembers && registration.teamMembers.length > 0) || registration.teamName;
